@@ -1,0 +1,35 @@
+name: Release
+# A tag v<version> releases the package: the tests, then the tarball attached to a GitHub release,
+# with the version's section of CHANGELOG.md as its notes.
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: The tag names the version in package.json
+        run: test "$GITHUB_REF_NAME" = "v$(node -p 'require("./package.json").version')"
+      - run: npm pack
+      - name: GitHub release with the tarball
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          awk -v v="## ${GITHUB_REF_NAME#v}" 'index($0, v) == 1 { f = 1; next } /^## / { f = 0 } f' CHANGELOG.md > notes.md
+          test -s notes.md
+          gh release create "$GITHUB_REF_NAME" tei-odd-interpreter-*.tgz --verify-tag \
+            --title "$GITHUB_REF_NAME" --notes-file notes.md
