@@ -3,12 +3,13 @@
  * to closures over xast. Anything outside it throws when the ODD is read.
  *
  * Paths: `.`, `..`, `@name`, `name`, `*`, `node()`, `text()`, the axes in AXES,
- * `/`, `//`, absolute paths and `[predicate]`. Operators: or, and,
- * = != < <= > >=, + -, mod, `if (…) then … else …`. Sequences `(a, b)`, string
- * and number literals, and the functions in FUNCTIONS.
+ * `/`, `//`, absolute paths, `[predicate]`, and a function call as a step or a path's start.
+ * Operators: or, and, = != < <= > >=, ||, + -, mod, | (union), except,
+ * `if (…) then … else …`. Sequences `(a, b)`, string and number literals, and the functions
+ * in FUNCTIONS.
  */
 
-import { children, isElement, isText, localName, textOf, type Element, type Text } from '../tei/xast.ts'
+import { attr, children, isElement, isText, localName, textOf, type Element, type Text } from '../tei/xast.ts'
 
 /** A node and its ancestor elements, outermost first. */
 export interface Pos {
@@ -80,6 +81,42 @@ const ancestors = (p: Pos): Pos[] => p.up.map((node, i) => ({ node, up: p.up.sli
 /** The document node above the outermost element, where an absolute path starts. */
 const documentOf = (p: Pos): Pos => ({ node: { type: 'root', children: [p.up[0] ?? p.node] } as unknown as Element, up: [] })
 
+/** Nodes once each, in document order; anything else, as attributes are here, after them. */
+const inOrder = (items: Item[]): Item[] => {
+  const seen = new Set<object>()
+  /** Where each node on the way down stands among its parent's. */
+  const key = ({ node, up }: Pos) => {
+    const chain = [...up, node]
+    return chain.slice(1).map((n, k) => (nodesOf(chain[k]), index.get(n) ?? 0))
+  }
+  const nodes = items
+    .filter((x): x is Pos => isPos(x) && !seen.has(x.node) && !!seen.add(x.node))
+    .map((p) => [p, key(p)] as const)
+    .sort(([, a], [, b]) => {
+      for (let k = 0; k < Math.min(a.length, b.length); k++) if (a[k] !== b[k]) return a[k] - b[k]
+      return a.length - b.length
+    })
+  return [...nodes.map(([p]) => p), ...items.filter((x) => !isPos(x))]
+}
+const identity = (x: Item) => (isPos(x) ? x.node : x)
+
+/** Each document's elements by `xml:id`, indexed when first asked. */
+const ids = new WeakMap<object, Map<string, Pos>>()
+export function byId({ node, up }: Pos, id: string): Pos | undefined {
+  const top = (up[0] ?? node) as Element
+  if (!ids.has(top)) {
+    const found = new Map<string, Pos>()
+    const walk = (n: Element, above: Element[]) => {
+      const i = attr(n, 'xml:id')
+      if (i && !found.has(i)) found.set(i, { node: n, up: above })
+      for (const k of children(n)) if (isElement(k)) walk(k, [...above, n])
+    }
+    walk(top, [])
+    ids.set(top, found)
+  }
+  return ids.get(top)!.get(id)
+}
+
 /** The axes, each in proximity order. */
 const AXES: Record<string, (p: Pos) => Pos[]> = {
   self: (p) => [p],
@@ -97,6 +134,10 @@ const AXES: Record<string, (p: Pos) => Pos[]> = {
 
 /** Position and size of the context in the predicate being evaluated. */
 let focus = { position: 1, size: 1 }
+/** The context of the function being called, for one that reads it beside its arguments. */
+let context: Pos
+
+const atoms = (v: Value) => seq(v).map(atom)
 
 /** Called without arguments, a function gets the context item. */
 const FUNCTIONS: Record<string, (...args: Value[]) => Value> = {
@@ -122,11 +163,40 @@ const FUNCTIONS: Record<string, (...args: Value[]) => Value> = {
   translate: (a, from, to) =>
     [...str(a)].map((c) => { const i = [...str(from)].indexOf(c); return i < 0 ? c : [...str(to)][i] ?? '' }).join(''),
   string: (a) => str(a),
+  'substring-after': (a, b) => {
+    const [s, t] = [str(a), str(b)]
+    return s.includes(t) ? s.slice(s.indexOf(t) + t.length) : ''
+  },
+  /** With one argument, split at whitespace. */
+  tokenize: (a, re, flags) => {
+    const s = re === undefined ? str(a).trim() : str(a)
+    return s ? s.split(re === undefined ? /\s+/ : new RegExp(str(re), flags === undefined ? '' : str(flags))) : []
+  },
+  'string-join': (v, sep) => atoms(v).join(sep === undefined ? '' : str(sep)),
+  'distinct-values': (v) => [...new Set(atoms(v))],
+  head: (v) => seq(v).slice(0, 1),
+  subsequence: (v, start, length) => {
+    const from = Math.round(num(start))
+    const to = length === undefined ? Infinity : from + Math.round(num(length))
+    return seq(v).filter((_, k) => k + 1 >= from && k + 1 < to)
+  },
+  /** Numeric, unless a value is no number. */
+  max: (v) => {
+    const xs = atoms(v)
+    if (!xs.length) return []
+    return xs.some((x) => Number.isNaN(Number(x))) ? xs.map(String).sort().at(-1)! : Math.max(...xs.map(Number))
+  },
+  root: (v) => seq(v).filter(isPos).slice(0, 1).map(documentOf),
+  /** The elements whose `xml:id` is among the tokens, in the document of the context or of the second argument. */
+  id: (v, at) => {
+    const [p] = (at === undefined ? [context] : seq(at)).filter(isPos)
+    return p ? inOrder(atoms(v).flatMap((x) => String(x).split(/\s+/)).flatMap((x) => byId(p, x) ?? [])) : []
+  },
   true: () => true,
   false: () => false,
 }
 
-const TOKEN = /\s*(?:'([^']*)'|"([^"]*)"|(\d+(?:\.\d+)?)|(::|\.\.|!=|<=|>=|[=<>()[\],@/.*+|-])|([A-Za-z_][\w.-]*(?::[A-Za-z_][\w.-]*)?))/y
+const TOKEN = /\s*(?:'([^']*)'|"([^"]*)"|(\d+(?:\.\d+)?)|(::|\.\.|!=|<=|>=|\|\||[=<>()[\],@/.*+|-])|([A-Za-z_][\w.-]*(?::[A-Za-z_][\w.-]*)?))/y
 
 type Tok = { t: 'str' | 'num' | 'op' | 'name'; v: string }
 type Fn = (p: Pos) => Value
@@ -217,12 +287,20 @@ export function compileXPath(expr: string): XPath {
     return left
   }
   function comparison(): Fn {
-    const left = additive()
+    const left = concat()
     const op = Object.keys(COMPARE).find((o) => is(o)) ?? VALUE_COMPARE[Object.keys(VALUE_COMPARE).find((o) => is(o, 'name'))!]
     if (!op) return left
     i++
-    const right = additive()
+    const right = concat()
     return (p) => compare(op, left(p), right(p))
+  }
+  function concat(): Fn {
+    let left = additive()
+    while (eat('||')) {
+      const [a, b] = [left, additive()]
+      left = (p) => str(a(p)) + str(b(p))
+    }
+    return left
   }
   function additive(): Fn {
     let left = multiplicative()
@@ -234,10 +312,29 @@ export function compileXPath(expr: string): XPath {
     return left
   }
   function multiplicative(): Fn {
-    let left = primary()
+    let left = union()
     while (eat('mod', 'name')) {
-      const [a, b] = [left, primary()]
+      const [a, b] = [left, union()]
       left = (p) => num(a(p)) % num(b(p))
+    }
+    return left
+  }
+  function union(): Fn {
+    let left = except()
+    while (eat('|') || eat('union', 'name')) {
+      const [a, b] = [left, except()]
+      left = (p) => inOrder([...seq(a(p)), ...seq(b(p))])
+    }
+    return left
+  }
+  function except(): Fn {
+    let left = primary()
+    while (eat('except', 'name')) {
+      const [a, b] = [left, primary()]
+      left = (p) => {
+        const drop = new Set(seq(b(p)).map(identity))
+        return inOrder(seq(a(p)).filter((x) => !drop.has(identity(x))))
+      }
     }
     return left
   }
@@ -265,32 +362,48 @@ export function compileXPath(expr: string): XPath {
       if (!eat('else', 'name')) fail('expected "else"')
       const no = or()
       base = (p) => (bool(test(p)) ? yes(p) : no(p))
-    } else if (call) {
-      const f = FUNCTIONS[tok.v] ?? fail(`unknown function ${tok.v}()`)
-      i += 2
-      const args: Fn[] = []
-      if (!is(')')) do args.push(or()); while (eat(','))
-      expect(')')
-      base = (p) => f(...(args.length ? args.map((a) => a(p)) : [[p]]))
-    }
+    } else if (call) base = fn()
     if (!base) return path()
     const [inner, preds] = [base, predicates()]
-    return preds.length ? (p) => filter(seq(inner(p)), preds, p) : inner
+    return steps(preds.length ? (p) => filter(seq(inner(p)), preds, p) : inner)
   }
 
-  /** Steps joined by `/`; `//` is `/descendant-or-self::node()/`, a leading `/` the document. */
-  function path(): Fn {
-    const absolute = is('/')
-    const steps: ((p: Pos) => Item[])[] = absolute ? [] : [step()]
-    while (eat('/')) {
-      if (eat('/')) steps.push(AXES['descendant-or-self'])
-      steps.push(step())
+  /** A function call; called without arguments, it gets the context item. */
+  function fn(): Fn {
+    const f = FUNCTIONS[toks[i].v] ?? fail(`unknown function ${toks[i].v}()`)
+    i += 2
+    const args: Fn[] = []
+    if (!is(')')) do args.push(or()); while (eat(','))
+    expect(')')
+    return (p) => {
+      const values = args.length ? args.map((a) => a(p)) : [[p]]
+      context = p
+      return f(...values)
     }
-    return (p) =>
-      steps.reduce<Item[]>((ctx, s) => ctx.flatMap((c) => (isPos(c) ? s(c) : [])), [absolute ? documentOf(p) : p])
+  }
+
+  /** A leading `/` is the document, else the first step. */
+  function path(): Fn {
+    if (is('/')) return steps((p) => [documentOf(p)])
+    return steps(step())
+  }
+
+  /** The steps joined by `/` after `start`; `//` is `/descendant-or-self::node()/`. */
+  function steps(start: Fn): Fn {
+    const list: ((p: Pos) => Item[])[] = []
+    while (eat('/')) {
+      if (eat('/')) list.push(AXES['descendant-or-self'])
+      list.push(step())
+    }
+    if (!list.length) return start
+    return (p) => list.reduce<Item[]>((ctx, s) => ctx.flatMap((c) => (isPos(c) ? s(c) : [])), seq(start(p)))
   }
 
   function step(): (p: Pos) => Item[] {
+    if (toks[i]?.t === 'name' && toks[i + 1]?.v === '(' && toks[i].v !== 'node' && toks[i].v !== 'text') {
+      const call = fn()
+      return (p) => seq(call(p))
+    }
     if (eat('.')) return (p) => [p]
     if (eat('..')) return parent
     if (eat('@')) {

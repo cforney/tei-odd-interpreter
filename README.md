@@ -107,15 +107,21 @@ without one is a plain break, while a `label` of `''` gives an empty element.
 
 Predicates and params use a subset of XPath:
 
-- **Paths:** `.`, `..`, `@name`, `name`, `*`, `node()`, `text()`, `/`, `//`, absolute paths
-  and `[predicate]`. Namespace prefixes are ignored.
+- **Paths:** `.`, `..`, `@name`, `name`, `*`, `node()`, `text()`, `/`, `//`, absolute paths,
+  `[predicate]`, and a function call as a step or a path's start (`root(.)//title`,
+  `id('a')/@n`, `.//p/local-name()`). Namespace prefixes are ignored.
 - **Axes:** `self`, `child`, `parent`, `ancestor`, `ancestor-or-self`, `descendant`,
   `descendant-or-self`, `preceding-sibling`, `following-sibling`, `preceding`, `following`.
 - **Operators:** `or`, `and`, `=`, `!=`, `<`, `<=`, `>`, `>=`, `eq`, `ne`, `lt`, `le`, `gt`,
-  `ge`, `+`, `-`, `mod`, `if (…) then … else …`, sequences `(a, b)`.
+  `ge`, `||`, `+`, `-`, `mod`, `|` (or `union`), `except`, `if (…) then … else …`, sequences
+  `(a, b)`. A union or `except` gives its nodes once each, in document order.
 - **Functions:** `position`, `last`, `exists`, `empty`, `local-name`, `string-length`,
   `ends-with`, `matches`, `replace`, `not`, `count`, `concat`, `contains`, `contains-token`,
-  `starts-with`, `normalize-space`, `translate`, `string`, `true`, `false`.
+  `starts-with`, `normalize-space`, `translate`, `string`, `true`, `false`, `head`, `root`,
+  `id`, `tokenize`, `substring-after`, `distinct-values`, `string-join`, `subsequence`, `max`.
+
+Variables (`$parameters`), `let`, `for`, `!` and maps are outside it: such an expression counts as
+empty and is reported.
 
 ## Beyond the Processing Model
 

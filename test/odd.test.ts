@@ -12,7 +12,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
-  coverage, createProcessor, findFirst, parse, readOdd, renderTei, selectOutput,
+  compileXPath, coverage, createProcessor, findFirst, parse, readOdd, renderTei, selectOutput, seq, str,
   h, text, toHtml, type BehaviourSpec, type Decision, type Element, type Finding,
 } from '../src/index.ts'
 
@@ -30,7 +30,7 @@ const paragraph = { node: findFirst(parse('<p>Text</p>'), 'p') as Element, up: [
 
 test('an unreadable predicate is false, and says so', () => {
   const odd = read(`<elementSpec ident="p" mode="change">
-    <model predicate="@a | @b" behaviour="inline"/>
+    <model predicate="@a intersect @b" behaviour="inline"/>
     <model behaviour="paragraph"/>
   </elementSpec>`)
   assert.equal(selectOutput(odd.models.p, paragraph)?.behaviour, 'paragraph')
@@ -265,7 +265,7 @@ test('a flattened ODD, and a schemaSpec in an example, are not findings', () => 
 
 test('findings say how much they matter', () => {
   const odd = read(`<elementSpec ident="p" mode="change">
-    <model predicate="@a | @b" behaviour="inline"/>
+    <model predicate="@a intersect @b" behaviour="inline"/>
     <model predicate="@c" behaviour="pb-x"/>
     <model behaviour="block"><outputRendition>color: red;</outputRendition></model>
   </elementSpec>`)
@@ -387,4 +387,27 @@ test('an anchor takes its id param, else its xml:id', () => {
     <elementSpec ident="anchor"><model predicate="@n" behaviour="anchor"><param name="id" value="concat('a', @n)"/></model><model behaviour="anchor"/></elementSpec>`)
   assert.equal(renderWith(odd, '<p><anchor n="1"/><anchor xml:id="b"/><anchor/></p>').html,
     '<p class="tei-p"><span class="tei-anchor" id="a1"></span><span class="tei-anchor" id="b"></span></p>')
+})
+
+test('the XPath real ODDs use beyond the core: functions, union, except, concatenation', () => {
+  const doc = parse('<TEI><teiHeader><title>T</title></teiHeader><text><p xml:id="a" n="3 1 2">x<hi>y</hi></p><p xml:id="b">z</p></text></TEI>')
+  const [tei, text] = [findFirst(doc, 'TEI')!, findFirst(doc, 'text')!]
+  const at = { node: findFirst(doc, 'p')!, up: [tei, text] }
+  const run = (expr: string) => seq(compileXPath(expr)(at)).map((item) => str([item]))
+  assert.deepEqual(run('tokenize(@n)'), ['3', '1', '2'])
+  assert.deepEqual(run("tokenize('a-b', '-')"), ['a', 'b'])
+  assert.deepEqual(run("substring-after('#ythou', '#')"), ['ythou'])
+  assert.deepEqual(run("string-join(tokenize(@n), ',')"), ['3,1,2'])
+  assert.deepEqual(run('distinct-values((1, 2, 1))'), ['1', '2'])
+  assert.deepEqual(run('head(tokenize(@n))'), ['3'])
+  assert.deepEqual(run('subsequence(tokenize(@n), 2)'), ['1', '2'])
+  assert.deepEqual(run('subsequence(tokenize(@n), 1, 2)'), ['3', '1'])
+  assert.deepEqual(run('max(tokenize(@n))'), ['3'])
+  assert.deepEqual(run("@xml:id || '-' || count(*)"), ['a-1'])
+  assert.deepEqual(run('root()//title'), ['T'])
+  assert.deepEqual(run("id('b a')/@xml:id"), ['a', 'b']) // in document order
+  assert.deepEqual(run("root(.)/id('b')"), ['z'])
+  assert.deepEqual(run('(following::p | .//hi | . | .)/local-name()'), ['p', 'hi', 'p']) // once each, in document order
+  assert.deepEqual(run('count(../* except .)'), ['1'])
+  assert.deepEqual(run('count(@xml:id | @n)'), ['2'])
 })

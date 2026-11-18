@@ -12,6 +12,13 @@ The params TEI defines for four behaviours, which were reported as not read:
 - `note`: `label` marks the note instead of its number, and is passed on as `notes[].label`.
 - `anchor`: `id`, else the `xml:id` as before.
 
+The XPath subset grows:
+
+- Functions `head`, `root`, `id`, `tokenize`, `substring-after`, `distinct-values`, `string-join`,
+  `subsequence`, `max`.
+- Operators `|` (`union`) and `except`, which give nodes once each in document order, and `||`.
+- A function call as a step or at a path's start: `root(.)//title`, `id('a')/@n`.
+
 ## 0.1.0
 
 The first release:

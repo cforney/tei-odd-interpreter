@@ -13,7 +13,7 @@ import type { Element as HastElement, ElementContent, Properties } from 'hast'
 
 import { finding, type Finding } from '../findings.ts'
 import { select, selectOutput, type Model, type Odd } from '../odd/odd.ts'
-import { bool, isPos, seq, str, type Item, type Pos, type Value } from '../odd/xpath.ts'
+import { bool, byId, isPos, seq, str, type Item, type Pos, type Value } from '../odd/xpath.ts'
 import type { Flow } from './behaviours.ts'
 import { attr, children, isElement, isText, localName, type Element, type Nodes } from './xast.ts'
 
@@ -88,23 +88,6 @@ const given = (v: Value | undefined) => (items(v).length ? str(v!) : undefined)
 /** A copy of what renders elsewhere already, whose ids would be there twice. */
 const withoutIds = (ns: ElementContent[]): ElementContent[] =>
   ns.map((n) => (n.type === 'element' ? { ...n, properties: { ...n.properties, id: undefined }, children: withoutIds(n.children) } : n))
-
-/** Each document's elements by `xml:id`, indexed when first asked. */
-const ids = new WeakMap<object, Map<string, Pos>>()
-function byId({ node, up }: Pos, id: string): Pos | undefined {
-  const top = (up[0] ?? node) as Element
-  if (!ids.has(top)) {
-    const index = new Map<string, Pos>()
-    const walk = (n: Element, above: Element[]) => {
-      const i = attr(n, 'xml:id')
-      if (i && !index.has(i)) index.set(i, { node: n, up: above })
-      for (const k of children(n)) if (isElement(k)) walk(k, [...above, n])
-    }
-    walk(top, [])
-    ids.set(top, index)
-  }
-  return ids.get(top)!.get(id)
-}
 
 /** Wrap the content in the behaviour's tag; a block set inside phrasing content becomes a span. */
 const wrap =
