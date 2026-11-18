@@ -28,6 +28,13 @@ An ODD is read from its first `schemaSpec`, through the `specGrp`s it refers to 
 file. A chain to another ODD (`schemaSpec/@source`) is not followed and is reported: flatten
 such an ODD first, with `odd2odd` from the TEI Stylesheets.
 
+Names go by namespace, in the ODD and in the documents, however they are prefixed. A spec is for
+TEI's element of its `@ident`, or with `elementSpec/@ns` for that namespace's. An element of another
+namespace, such as SVG's `title`, takes no TEI model; it is listed in `unmapped` as
+`Q{uri}local`, and so named for `findFirst` and `findAll`. An element in no namespace counts as
+TEI's, so a document without `xmlns` still renders. An `egXML` is in TEI's Examples namespace, so
+no spec is read from it.
+
 ## API
 
 | | |
@@ -109,7 +116,9 @@ Predicates and params use a subset of XPath:
 
 - **Paths:** `.`, `..`, `@name`, `name`, `*`, `node()`, `text()`, `/`, `//`, absolute paths,
   `[predicate]`, and a function call as a step or a path's start (`root(.)//title`,
-  `id('a')/@n`, `.//p/local-name()`). Namespace prefixes are ignored.
+  `id('a')/@n`, `.//p/local-name()`). An unprefixed name is TEI's; a prefix means what the ODD
+  binds it to where the expression stands (`xmlns:f="…"` on the `elementSpec`, say), and one it
+  does not bind is ignored.
 - **Axes:** `self`, `child`, `parent`, `ancestor`, `ancestor-or-self`, `descendant`,
   `descendant-or-self`, `preceding-sibling`, `following-sibling`, `preceding`, `following`.
 - **Operators:** `or`, `and`, `=`, `!=`, `<`, `<=`, `>`, `>=`, `eq`, `ne`, `lt`, `le`, `gt`,
@@ -169,7 +178,7 @@ You can rely on these, and they follow semantic versioning:
 
 | | |
 | --- | --- |
-| `.tei-<element>` | On every element rendered |
+| `.tei-<element>` | On every element rendered, by its local name |
 | `.r-<id>`, `style` | A `@rendition` (`#id`, or a prefix the ODD's `prefixDef` resolves) and the source's `@style`, where the model has `@useSourceRendition="true"` |
 | `id`, `lang` | From `xml:id` and `xml:lang`, the only attributes passed on without a param |
 | `.<ident>-group`, `@cssClass` | A `modelGrp` beyond an element's only entry, and a styled model among several |

@@ -15,7 +15,7 @@ import { finding, type Finding } from '../findings.ts'
 import { select, selectOutput, type Model, type Odd } from '../odd/odd.ts'
 import { bool, byId, isPos, seq, str, type Item, type Pos, type Value } from '../odd/xpath.ts'
 import type { Flow } from './behaviours.ts'
-import { attr, children, isElement, isText, localName, type Element, type Nodes } from './xast.ts'
+import { attr, children, isElement, isText, localName, nameOf, type Element, type Nodes } from './xast.ts'
 
 export type { ElementContent }
 
@@ -286,7 +286,9 @@ export function createRenderer(odd: Odd) {
     }
     if (!isElement(node)) return []
 
-    const ln = localName(node.name)
+    // The models are looked up by namespace, the class is the local name: `@ns` keeps `tei-<ident>`.
+    const ln = nameOf(node)
+    const cls = `tei-${localName(node.name)}`
     const inside = (tag?: string) => (tag ? PHRASING.has(tag) : phrasing)
     const kids = (tag?: string) =>
       children(node).flatMap((child) => render(child as Nodes, [...up, node], inside(tag), state, output))
@@ -304,7 +306,7 @@ export function createRenderer(odd: Odd) {
     if (decision) state.open = decision
     if (!model) {
       state.unmapped.add(ln)
-      const span = h('span', { ...attrMap(node), className: [`tei-${ln}`, 'tei-unmapped'] }, kids('span'))
+      const span = h('span', { ...attrMap(node), className: [cls, 'tei-unmapped'] }, kids('span'))
       state.open = parent
       return [span]
     }
@@ -341,7 +343,7 @@ export function createRenderer(odd: Odd) {
       // The source's `@style` goes with its renditions, the params' custom properties after it.
       const style = [model.useSourceRendition && attr(node, 'style'), own.style].filter(Boolean).join('; ')
       const props = {
-        className: [`tei-${ln}`, ...model.classes, ...viewClasses, ...source],
+        className: [cls, ...model.classes, ...viewClasses, ...source],
         ...attrMap(node),
         ...(again && { id: undefined }),
         ...own,

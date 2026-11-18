@@ -258,7 +258,7 @@ test('a flattened ODD, and a schemaSpec in an example, are not findings', () => 
   assert.deepEqual(flat.findings, [])
   assert.deepEqual(whole(`<schemaSpec ident="a" source="tei:4.9.0">${P}</schemaSpec>`).findings, [])
   const examples = whole(`<egXML xmlns="http://www.tei-c.org/ns/Examples"><schemaSpec ident="ex"/></egXML><schemaSpec ident="a">${P}
-    <elementSpec ident="q"><exemplum><egXML><schemaSpec ident="myODD" source="my.xml"/></egXML></exemplum><model behaviour="inline"/></elementSpec></schemaSpec>`)
+    <elementSpec ident="q"><exemplum><egXML xmlns="http://www.tei-c.org/ns/Examples"><schemaSpec ident="myODD" source="my.xml"/></egXML></exemplum><model behaviour="inline"/></elementSpec></schemaSpec>`)
   assert.deepEqual(examples.findings, [])
   assert.deepEqual(Object.keys(examples.models), ['p', 'q'])
 })
@@ -410,4 +410,26 @@ test('the XPath real ODDs use beyond the core: functions, union, except, concate
   assert.deepEqual(run('(following::p | .//hi | . | .)/local-name()'), ['p', 'hi', 'p']) // once each, in document order
   assert.deepEqual(run('count(../* except .)'), ['1'])
   assert.deepEqual(run('count(@xml:id | @n)'), ['2'])
+})
+
+test('names go by namespace: in the source, in elementSpec/@ns, and in a predicate by what the ODD binds', () => {
+  const odd = read(`${SHELL}<elementSpec ident="p"><model behaviour="paragraph"/></elementSpec>
+    <elementSpec ident="hi"><model behaviour="inline"/></elementSpec><elementSpec ident="title"><model behaviour="inline"/></elementSpec>
+    <elementSpec ident="mark" ns="urn:x-fixture"><model behaviour="inline" cssClass="mark-foreign"/></elementSpec>
+    <elementSpec ident="term" xmlns:f="urn:x-fixture" xmlns:t="http://www.tei-c.org/ns/1.0">
+      <model predicate="f:mark" behaviour="inline" cssClass="term-marked"/>
+      <model predicate="t:hi" behaviour="inline" cssClass="term-hi"/>
+      <model predicate="x:title" behaviour="inline" cssClass="term-title"/>
+      <model behaviour="inline"/>
+    </elementSpec>`)
+  const result = renderTei(parse(`<tei:TEI xmlns:tei="http://www.tei-c.org/ns/1.0" xmlns:f="urn:x-fixture" xmlns:o="urn:x-other"><tei:text><tei:body>
+    <tei:p><hi xmlns="http://www.tei-c.org/ns/1.0">a</hi> <f:mark>b</f:mark> <o:mark>c</o:mark> <svg xmlns="http://www.w3.org/2000/svg"><title>d</title></svg></tei:p>
+    <tei:p><tei:term><f:mark>e</f:mark></tei:term> <tei:term><tei:hi>f</tei:hi></tei:term> <tei:term><tei:title>g</tei:title></tei:term> <tei:term><o:mark>h</o:mark></tei:term></tei:p>
+  </tei:body></tei:text></tei:TEI>`), createProcessor(odd))
+  assert.equal(result.html, '<p class="tei-p"><span class="tei-hi">a</span> <span class="tei-mark mark-foreign">b</span> '
+    + '<span class="tei-mark tei-unmapped">c</span> <span class="tei-svg tei-unmapped"><span class="tei-title tei-unmapped">d</span></span></p>'
+    + '<p class="tei-p"><span class="tei-term term-marked"><span class="tei-mark mark-foreign">e</span></span> <span class="tei-term term-hi"><span class="tei-hi">f</span></span> '
+    + '<span class="tei-term term-title"><span class="tei-title">g</span></span> <span class="tei-term"><span class="tei-mark tei-unmapped">h</span></span></p>')
+  // SVG's title is not TEI's; an unbound prefix (x:) is ignored, as before
+  assert.deepEqual(result.unmapped, ['Q{http://www.w3.org/2000/svg}svg', 'Q{http://www.w3.org/2000/svg}title', 'Q{urn:x-other}mark'])
 })

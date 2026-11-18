@@ -25,7 +25,7 @@ import { resolveRanges } from './ranges.ts'
 import { resolveRegions } from './regions.ts'
 import { createRenderer, type CollectedNote, type Decision, type RenderState } from './teiToHast.ts'
 import { wsTrim } from './whitespace.ts'
-import { isElement, localName, type Element, type Root as XastRoot } from './xast.ts'
+import { isElement, nameOf, type Element, type Root as XastRoot } from './xast.ts'
 
 /** What one render produces. */
 export interface RenderResult {
@@ -70,7 +70,7 @@ export function renderTei(source: XastRoot, { odd, render }: Processor, decision
   const scratch: RenderState = { notes: [], warnings: [], unmapped: new Set(), anchors: [] }
   const text = hastToSearchText({ type: 'root', children: render(tree, scratch, PLAINTEXT) })
   const top = tree.children.find((n): n is Element => isElement(n))
-  const pageModel = top && select(odd.models[localName(top.name)] ?? [], { node: top, up: [] }, PAGE)
+  const pageModel = top && select(odd.models[nameOf(top)] ?? [], { node: top, up: [] }, PAGE)
   if (pageModel) odd.reached.models.add(pageModel.id)
   const page = Object.fromEntries(
     Object.entries(pageModel?.params ?? {}).map(([k, f]) => [k, seq(f({ node: top!, up: [] })).map((item) => str([item]))]),

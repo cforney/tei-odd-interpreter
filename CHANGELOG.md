@@ -19,6 +19,15 @@ The XPath subset grows:
 - Operators `|` (`union`) and `except`, which give nodes once each in document order, and `||`.
 - A function call as a step or at a path's start: `root(.)//title`, `id('a')/@n`.
 
+Names by namespace, not by prefix:
+
+- An element of another namespace with a TEI name, such as SVG's `title`, no longer takes TEI's
+  model: it is unmapped, and named `Q{uri}local` in `unmapped`, `findFirst` and `findAll`.
+- `elementSpec/@ns` gives a spec to that namespace's element; the class stays `tei-<ident>`.
+- A prefix in a predicate or param means what the ODD binds it to; an unbound one is ignored, as
+  before. A prefixed TEI source or ODD reads as an unprefixed one.
+- `egXML` is recognised by TEI's Examples namespace, not by its name.
+
 ## 0.1.0
 
 The first release:

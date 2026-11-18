@@ -9,7 +9,7 @@
  * in FUNCTIONS.
  */
 
-import { attr, children, isElement, isText, localName, textOf, type Element, type Text } from '../tei/xast.ts'
+import { attr, children, isElement, isText, localName, nameOf, qualify, textOf, type Element, type Text } from '../tei/xast.ts'
 
 /** A node and its ancestor elements, outermost first. */
 export interface Pos {
@@ -203,7 +203,8 @@ type Fn = (p: Pos) => Value
 /** A predicate, or the position a `[k]` asks for. */
 type Pred = Fn | number
 
-export function compileXPath(expr: string): XPath {
+/** `ns` binds the expression's prefixes; an unprefixed name is TEI's, and an unbound prefix is ignored. */
+export function compileXPath(expr: string, ns: Record<string, string> = {}): XPath {
   const fail = (why: string): never => {
     throw new Error(`XPath "${expr}": ${why}`)
   }
@@ -422,11 +423,11 @@ export function compileXPath(expr: string): XPath {
     let test = (q: Pos['node']): boolean => isElement(q)
     if (!eat('*')) {
       const n = name()
-      const local = localName(n)
+      const key = n.includes(':') && ns[n.slice(0, n.indexOf(':'))] ? qualify(n, ns) : localName(n)
       if ((n === 'node' || n === 'text') && eat('(')) {
         expect(')')
         test = n === 'node' ? () => true : (q) => isText(q)
-      } else test = (q) => isElement(q) && localName(q.name) === local
+      } else test = (q) => isElement(q) && nameOf(q) === key
     }
     const preds = predicates()
     return (p) => filter(move(p).filter((q) => test(q.node)), preds, p)

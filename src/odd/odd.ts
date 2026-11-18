@@ -11,7 +11,7 @@
 
 import { finding, type Finding, type FindingCode } from '../findings.ts'
 import { BEHAVIOURS, type BehaviourSpec } from '../tei/behaviours.ts'
-import { attr, elementChildren, findAll, findFirst, isElement, localName, parse, plainText, textOf, type Element, type Root } from '../tei/xast.ts'
+import { attr, elementChildren, findAll, findFirst, nameOf, parse, plainText, qualify, TEI_NS, textOf, type Element } from '../tei/xast.ts'
 import { bool, compileXPath, str, type Pos, type XPath } from './xpath.ts'
 
 export interface Model {
@@ -121,14 +121,9 @@ const rule = (selector: string, r: Element) =>
   `${selector}${attr(r, 'scope') ? `::${attr(r, 'scope')}` : ''} { ${textOf(r).trim()} }`
 const rules = (el: Element, selector: string) => elementChildren(el, 'outputRendition').map((r) => rule(selector, r))
 
-/** The tree without its `egXML`s: they document ODD markup, and say nothing about this ODD. */
-const withoutExamples = <T extends Root | Element>(node: T): T => ({
-  ...node,
-  children: node.children.filter((c) => !isElement(c, 'egXML')).map((c) => (isElement(c) ? withoutExamples(c) : c)),
-})
-
 export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredOutputs = OTHER_MEDIA, checkedValueLists = ['closed'] }: ReadOddOptions = {}): Odd {
-  const tree = withoutExamples(parse(xml))
+  // An `egXML`'s content is in TEI's Examples namespace: it documents ODD markup, and no name here matches it.
+  const tree = parse(xml)
   /** The ODD's private URI schemes, as `simple:` in TEI Simple Print; one that does not compile is left out. */
   const prefixes = new Map(findAll(tree, 'prefixDef').flatMap((p) => {
     try {
@@ -140,7 +135,7 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
   /** An element's base model, once: where it stands does not change. */
   const cached = new WeakMap<Element, Model | undefined>()
   const base = (node: Element, up: Element[]) => {
-    if (!cached.has(node)) cached.set(node, selectOutput(odd.models[localName(node.name)] ?? [], { node, up }))
+    if (!cached.has(node)) cached.set(node, selectOutput(odd.models[nameOf(node)] ?? [], { node, up }))
     return cached.get(node)
   }
   const odd: Odd = {
@@ -156,7 +151,7 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
       const m = base(node, up)
       return m && 'join' in m.params ? str(m.params.join({ node, up })) : undefined
     },
-    silent: (node, up) => select(odd.models[localName(node.name)] ?? [], { node, up }, PLAIN)?.behaviour === 'omit',
+    silent: (node, up) => select(odd.models[nameOf(node)] ?? [], { node, up }, PLAIN)?.behaviour === 'omit',
     values: {},
     renditions: new Set(),
     rendition: (token) => {
@@ -207,7 +202,7 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
   /** The specs under a `schemaSpec` or `specGrp`, in order, through the groups it holds and refers to. */
   const specsIn = (parent: unknown): Element[] =>
     elementChildren(parent).flatMap((child) => {
-      const name = localName(child.name)
+      const name = nameOf(child)
       if (name === 'elementSpec') return [child]
       if (name !== 'specGrp' && name !== 'specGrpRef') return []
       const target = attr(child, 'target') ?? ''
@@ -220,14 +215,16 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
 
   for (const spec of specsIn(schema)) {
     const ident = attr(spec, 'ident')!
-    const entries = elementChildren(spec).filter((e) => /^model(Grp|Sequence)?$/.test(localName(e.name)))
+    // `@ns` gives the spec to that namespace's element of the name.
+    const key = qualify(ident, { '': attr(spec, 'ns') ?? TEI_NS })
+    const entries = elementChildren(spec).filter((e) => /^model(Grp|Sequence)?$/.test(nameOf(e)))
     const models: Model[] = []
     const view: string[] = []
 
     entries.forEach((entry, g) => {
-      const group = localName(entry.name) === 'modelGrp' ? entry : undefined
+      const group = nameOf(entry) === 'modelGrp' ? entry : undefined
       const sole = entries.length === 1
-      const earlier = entries.slice(0, g).filter((e) => localName(e.name) === 'modelGrp').length
+      const earlier = entries.slice(0, g).filter((e) => nameOf(e) === 'modelGrp').length
       const groupClass = group && !sole ? `${ident}-group${earlier ? earlier + 1 : ''}` : undefined
       if (group) css.push(...rules(group, sole ? `.tei-${ident}` : `.${groupClass}`))
 
@@ -246,7 +243,7 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
           }
           let evaluate: XPath
           try {
-            evaluate = compileXPath(expr)
+            evaluate = compileXPath(expr, m.data?.ns)
           } catch (error) {
             return () => empty(error)
           }
@@ -275,7 +272,7 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
           const descs = elementChildren(m, 'desc').map((d) => textOf(d).replace(/\s+/g, ' ').trim())
           if (!views.get(output)?.length) views.set(output, descs)
         }
-        const sequence = localName(m.name) === 'modelSequence' ? elementChildren(m, 'model').map((part) => read(part, m, only)) : undefined
+        const sequence = nameOf(m) === 'modelSequence' ? elementChildren(m, 'model').map((part) => read(part, m, only)) : undefined
         const named = attr(m, 'behaviour')
         const known = !!sequence || (named !== undefined && Object.hasOwn(odd.behaviours, named))
         if (!sequence && !named) report('behaviour-missing', { model: id })
@@ -299,7 +296,7 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
           group: group && g,
         }
       }
-      const members = group ? elementChildren(group).filter((e) => /^model(Sequence)?$/.test(localName(e.name))) : [entry]
+      const members = group ? elementChildren(group).filter((e) => /^model(Sequence)?$/.test(nameOf(e))) : [entry]
       for (const m of members) {
         // `@output` is a list: the model belongs to each of them.
         const outputs = tokens(m, 'output').length ? tokens(m, 'output') : tokens(group, 'output')
@@ -321,13 +318,13 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
       else if (m.group !== undefined && !earlier) decides.set(output, { by: m.id, group: m.group })
     }
 
-    if (models.length) odd.models[ident] = models
+    if (models.length) odd.models[key] = models
 
     for (const def of elementChildren(elementChildren(spec, 'attList')[0], 'attDef')) {
       const list = findFirst(def, 'valList')
       if (!list || !checkedValueLists.includes(attr(list, 'type') ?? 'open')) continue
       const items = elementChildren(list, 'valItem').map((v) => attr(v, 'ident')!)
-      if (items.length) (odd.values[ident] ??= {})[attr(def, 'ident')!] = new Set(items)
+      if (items.length) (odd.values[key] ??= {})[attr(def, 'ident')!] = new Set(items)
     }
   }
 

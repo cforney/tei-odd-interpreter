@@ -12,6 +12,22 @@ declare module 'xast' {
     /** The text as encoded, where a transform changed what renders. */
     source?: string
   }
+  interface ElementData {
+    /** The name by namespace, as `nameOf` gives it. */
+    name?: string
+    /** The namespaces in scope, by prefix; `''` is the default. */
+    ns?: Record<string, string>
+  }
+}
+
+export const TEI_NS = 'http://www.tei-c.org/ns/1.0'
+
+/** A qualified name by the namespaces in scope: TEI's, or none, is the local name, any other `Q{uri}local`. */
+export function qualify(qname: string, ns: Record<string, string>): string {
+  const colon = qname.indexOf(':')
+  const uri = ns[colon < 0 ? '' : qname.slice(0, colon)]
+  const local = qname.slice(colon + 1)
+  return !uri || uri === TEI_NS ? local : `Q{${uri}}${local}`
 }
 
 /**
@@ -22,13 +38,20 @@ declare module 'xast' {
 export function parse(xml: string): Root {
   const tokens = (attributes: Record<string, string>) =>
     Object.fromEntries(Object.entries(attributes).map(([k, v]) => [k, v.replace(/\s+/g, ' ').trim()]))
-  const convert = (node: XmlNode): ElementContent[] =>
-    node instanceof XmlElement
-      ? [{ type: 'element', name: node.name, attributes: tokens(node.attributes), children: node.children.flatMap(convert) }]
-      : node instanceof XmlText
-        ? [{ type: 'text', value: node.text }]
-        : []
-  return { type: 'root', children: parseXml(xml).children.flatMap(convert) }
+  const convert = (node: XmlNode, scope: Record<string, string>): ElementContent[] => {
+    if (node instanceof XmlText) return [{ type: 'text', value: node.text }]
+    if (!(node instanceof XmlElement)) return []
+    const declared = Object.entries(node.attributes).filter(([k]) => k === 'xmlns' || k.startsWith('xmlns:'))
+    const ns = declared.length ? { ...scope, ...Object.fromEntries(declared.map(([k, v]) => [k.slice(6), v])) } : scope
+    return [{
+      type: 'element',
+      name: node.name,
+      attributes: tokens(node.attributes),
+      children: node.children.flatMap((c) => convert(c, ns)),
+      data: { name: qualify(node.name, ns), ns },
+    }]
+  }
+  return { type: 'root', children: parseXml(xml).children.flatMap((c) => convert(c, {})) }
 }
 
 /** Strip a namespace prefix: `tei:head` → `head`. */
@@ -38,10 +61,13 @@ export function localName(qname: string | null | undefined): string {
   return colon === -1 ? qname : qname.slice(colon + 1)
 }
 
+/** An element's name by namespace: `head` for TEI's (or none), `Q{http://www.w3.org/2000/svg}title` for another's. */
+export const nameOf = (node: Element): string => node.data?.name ?? localName(node.name)
+
 export function isElement(node: unknown, name?: string): node is Element {
   const n = node as Nodes | undefined
   if (n?.type !== 'element') return false
-  return !name || localName(n.name) === name
+  return !name || nameOf(n) === name
 }
 
 export function isText(node: unknown): node is Text {
@@ -58,12 +84,12 @@ export function attr(node: Element, name: string): string | undefined {
   return value ?? undefined
 }
 
-/** Element children with the given local name. */
+/** Element children with the given name. */
 export function elementChildren(node: unknown, name?: string): Element[] {
   return children(node).filter((c): c is Element => isElement(c, name))
 }
 
-/** All descendant elements with the given local name, in document order. */
+/** All descendant elements with the given name, in document order. */
 export function findAll(node: unknown, name: string, acc: Element[] = []): Element[] {
   for (const child of children(node)) {
     if (isElement(child, name)) acc.push(child)
@@ -72,7 +98,7 @@ export function findAll(node: unknown, name: string, acc: Element[] = []): Eleme
   return acc
 }
 
-/** First descendant element with the given local name. */
+/** First descendant element with the given name. */
 export function findFirst(node: unknown, name: string): Element | undefined {
   for (const child of children(node)) {
     if (isElement(child, name)) return child
