@@ -46,7 +46,7 @@ such an ODD first, with `odd2odd` from the TEI Stylesheets.
 | --- | --- |
 | `html`, `hast` | The page, as a string and as a tree to map to your own components |
 | `text` | The `plain` output, for any search index |
-| `notes` | In document order: `place`, `number` and `id` where numbered, `html`, `hast` |
+| `notes` | In document order: `place`, `number` and `id` where numbered, `label` where the model gives one, `html`, `hast` |
 | `page` | The params of the root element's `page` model, each as strings |
 | `warnings` | Findings about this document |
 | `unmapped` | Elements the ODD has no model for; they render as `span.tei-<name>.tei-unmapped` |
@@ -78,8 +78,12 @@ as a head, before the list. `cell` gives `th` where its `heading` param is true,
 `rows` as `colspan` and `rowspan`. A `break` of `type` `line` puts its `label` at the start of the
 new line, as a line number, unless the model joins the lines (`join`): then the label ends the line,
 as the print's hyphen. `note` collects
-its body and `place` into `result.notes` and leaves a numbered marker in the text, unless the
-model's `marker` param is false, as for a note placed elsewhere on the page.
+its body, `place` and `label` into `result.notes` and leaves a numbered marker in the text, unless the
+model's `marker` param is false, as for a note placed elsewhere on the page; a `label`, such as the
+print's `(a)`, marks it instead of the number. `graphic` gives an `img`: `title` is its text
+alternative, `width` and `height` are CSS lengths, `scale` zooms it. `glyph` renders the element its
+`uri` points to (`#id`, in the same document), by that element's own models, so the ODD says how a
+`char` or `glyph` shows; without a `uri`, its content. `anchor` takes its `id` param, else its `xml:id`.
 
 A project adds behaviours, or replaces one. One that only wraps needs a `tag`, any other a
 `render`, which is given the element's params, its `content` and the rest of

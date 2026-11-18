@@ -25,6 +25,8 @@ export interface CollectedNote {
   /** `note-1`, … and the marker's number; neither where the model's `marker` param is false. */
   id?: string
   number?: number
+  /** The model's `label` param, the note's own mark: the marker shows it instead of the number. */
+  label?: string
   body: ElementContent[]
 }
 
@@ -80,6 +82,30 @@ const PHRASING = new Set(['p', 'span', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
 const items = (v: Value | undefined): Item[] => (v === undefined ? [] : seq(v))
 const same = (a: Item, b: Item) => (isPos(a) && isPos(b) ? a.node === b.node : a === b)
 
+/** A param's string, unless it selects nothing. */
+const given = (v: Value | undefined) => (items(v).length ? str(v!) : undefined)
+
+/** A copy of what renders elsewhere already, whose ids would be there twice. */
+const withoutIds = (ns: ElementContent[]): ElementContent[] =>
+  ns.map((n) => (n.type === 'element' ? { ...n, properties: { ...n.properties, id: undefined }, children: withoutIds(n.children) } : n))
+
+/** Each document's elements by `xml:id`, indexed when first asked. */
+const ids = new WeakMap<object, Map<string, Pos>>()
+function byId({ node, up }: Pos, id: string): Pos | undefined {
+  const top = (up[0] ?? node) as Element
+  if (!ids.has(top)) {
+    const index = new Map<string, Pos>()
+    const walk = (n: Element, above: Element[]) => {
+      const i = attr(n, 'xml:id')
+      if (i && !index.has(i)) index.set(i, { node: n, up: above })
+      for (const k of children(n)) if (isElement(k)) walk(k, [...above, n])
+    }
+    walk(top, [])
+    ids.set(top, index)
+  }
+  return ids.get(top)!.get(id)
+}
+
 /** Wrap the content in the behaviour's tag; a block set inside phrasing content becomes a span. */
 const wrap =
   (tag: string, flow?: Flow): Behaviour =>
@@ -106,7 +132,23 @@ const RENDER: Record<string, Behaviour> = {
     return figure
   },
   link: (c) => h('a', { ...c.props, href: str(c.params.uri ?? '') }, c.content('a')),
-  graphic: (c) => h('img', { ...c.props, src: str(c.params.url ?? ''), alt: '' }),
+  /** `width` and `height` are CSS lengths, as TEI's are; `scale` zooms; `title` is the text alternative. */
+  graphic: (c) => {
+    const size = (['width', 'height'] as const).flatMap((k) => (given(c.params[k]) ? [`${k}: ${given(c.params[k])}`] : []))
+    const scale = given(c.params.scale)
+    const style = [c.props.style, ...size, scale && `zoom: ${scale}`].filter(Boolean).join('; ')
+    const alt = given(c.params.title)?.replace(/\s+/g, ' ').trim() ?? ''
+    return h('img', { ...c.props, src: str(c.params.url ?? ''), alt, ...(style && { style }) })
+  },
+  /** The element a local `uri` (`#id`) points to, rendered by its own models; without one, the content. */
+  glyph: (c) => {
+    const uri = given(c.params.uri)
+    const target = uri?.startsWith('#') ? byId(c.pos, uri.slice(1)) : undefined
+    // Not the glyph itself, nor around it: that would render without end
+    const usable = target && ![...c.pos.up, c.pos.node].includes(target.node)
+    if (uri && !usable) c.state.warnings.push(finding('reference-unresolved', { uri }))
+    return h('span', c.props, usable ? withoutIds(c.value([target], 'span')) : c.content('span'))
+  },
   /** Each reading once, marked as the default or not of the page and of each view; alone, the default. */
   alternate: (c) => {
     if (!c.views) return c.value(c.params.default)
@@ -118,10 +160,12 @@ const RENDER: Record<string, Behaviour> = {
       className: ['pm-alt', ...outputs.map(([o, p]) => `${o}-${items(p.default).some((d) => same(d, r)) ? 'default' : 'alternate'}`)],
     }, c.value([r], 'span'))))
   },
+  /** Its `id` param, else the `xml:id`. */
   anchor: (c) => {
-    if (!c.props.id) return null
-    c.state.anchors.push(String(c.props.id))
-    return h('span', c.props)
+    const id = 'id' in c.params ? given(c.params.id) : c.props.id && String(c.props.id)
+    if (!id) return null
+    c.state.anchors.push(id)
+    return h('span', { ...c.props, id })
   },
   /**
    * A line break where the output already starts a line would be an empty line. A label starts
@@ -149,8 +193,7 @@ const RENDER: Record<string, Behaviour> = {
   /** A heading cell where `heading` is true; `cols` and `rows` are its spans. */
   cell: (c) => {
     const cell = wrap(bool(c.params.heading ?? false) ? 'th' : 'td', 'block')(c) as HastElement
-    const span = (v: Value | undefined) => (items(v).length ? str(v!) : undefined)
-    if (cell.tagName !== 'span') Object.assign(cell.properties, { colSpan: span(c.params.cols), rowSpan: span(c.params.rows) })
+    if (cell.tagName !== 'span') Object.assign(cell.properties, { colSpan: given(c.params.cols), rowSpan: given(c.params.rows) })
     return cell
   },
   /**
@@ -160,6 +203,8 @@ const RENDER: Record<string, Behaviour> = {
    */
   note: (c) => {
     const note: CollectedNote = { place: 'place' in c.params ? str(c.params.place) : 'end', body: [] }
+    const label = given(c.params.label)
+    if (label !== undefined) note.label = label
     c.state.notes.push(note)
     if (!('marker' in c.params) || bool(c.params.marker)) {
       note.number = c.state.notes.filter((n) => n.number).length + 1
@@ -178,7 +223,7 @@ const RENDER: Record<string, Behaviour> = {
         'data-note': note.id,
         ...('range' in c.params && { 'data-range': str(c.params.range).replace(/^#/, '') }),
       },
-      [text(String(note.number))],
+      [text(note.label ?? String(note.number))],
     )
   },
 }

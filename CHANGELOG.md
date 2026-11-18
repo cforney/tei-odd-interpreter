@@ -2,6 +2,16 @@
 
 Each version's section becomes the notes of its GitHub release. 0.x may break with any minor version.
 
+## Unreleased
+
+The params TEI defines for four behaviours, which were reported as not read:
+
+- `graphic`: `title` is the image's `alt`, `width` and `height` its CSS size, `scale` its zoom.
+- `glyph`: `uri` (`#id`) renders the element it points to, by that element's own models; a reference
+  that leads nowhere is the new warning `reference-unresolved`.
+- `note`: `label` marks the note instead of its number, and is passed on as `notes[].label`.
+- `anchor`: `id`, else the `xml:id` as before.
+
 ## 0.1.0
 
 The first release:

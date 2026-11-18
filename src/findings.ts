@@ -35,6 +35,7 @@ const MESSAGES = {
   'value-not-listed': ['warning', (a) => `Value not in the ODD's list: ${a.element}/@${a.attribute}="${a.value}"`],
   'rendition-undeclared': ['warning', (a) => `Rendition not declared in the ODD: #${a.rendition}`],
   'range-no-start': ['warning', (a) => `Commented range without a start: ${a.ids}`],
+  'reference-unresolved': ['warning', (a) => `Reference that leads to no element in the document: ${a.uri}`],
   'anchor-unused': ['info', (a) => `Anchor no note points to: ${a.ids}`],
   'region-unpaired': ['warning', (a) => `Region marker without a partner (${a.count}×)`],
   'id-twice': ['error', (a) => `xml:id used twice, links land in the wrong place: ${a.id}`],

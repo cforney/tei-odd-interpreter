@@ -352,3 +352,39 @@ test('a cell may head its row, and span columns and rows', () => {
   assert.equal(result.html, '<table class="tei-table"><tr class="tei-row"><th class="tei-cell" colspan="2">h</th></tr><tr class="tei-row"><td class="tei-cell" rowspan="2">a</td><td class="tei-cell">b</td></tr></table>')
   assert.match(JSON.stringify(result.hast), /"colSpan":"2"/) // hast's own name, for a consumer's components
 })
+
+test('a graphic takes its size, scale and text alternative from its params', () => {
+  const odd = read(`${SHELL}<elementSpec ident="graphic"><model behaviour="graphic"><param name="url" value="@url"/>
+    <param name="width" value="@width"/><param name="height" value="@height"/><param name="scale" value="@scale"/><param name="title" value="desc"/></model></elementSpec>`)
+  assert.deepEqual(odd.findings, [])
+  assert.equal(renderWith(odd, '<graphic url="a.png" width="10em" scale="0.5"><desc>A\n  ship</desc></graphic><graphic url="b.png"/>').html,
+    '<img class="tei-graphic" src="a.png" alt="A ship" style="width: 10em; zoom: 0.5"><img class="tei-graphic" src="b.png" alt="">')
+})
+
+test('a note with a label is marked by it, and passes it on', () => {
+  const odd = read(`${SHELL}<elementSpec ident="p"><model behaviour="paragraph"/></elementSpec>
+    <elementSpec ident="note"><model behaviour="note"><param name="label" value="@n"/></model></elementSpec>`)
+  const result = renderWith(odd, '<p>a<note n="*">x</note>b<note>y</note></p>')
+  assert.deepEqual(odd.findings, [])
+  assert.match(result.html, /href="#note-1"[^>]*>\*<\/a>b<a [^>]*href="#note-2"[^>]*>2<\/a>/)
+  assert.deepEqual(result.notes.map((n) => [n.number, n.label]), [[1, '*'], [2, undefined]])
+})
+
+test('a glyph renders the element its uri points to, by that element\'s models', () => {
+  const odd = read(`${SHELL}<elementSpec ident="teiHeader"><model behaviour="metadata"/></elementSpec>
+    <elementSpec ident="p"><model behaviour="paragraph"/></elementSpec>
+    <elementSpec ident="glyph"><model behaviour="inline"><param name="content" value="string(mapping)"/></model></elementSpec>
+    <elementSpec ident="g"><model behaviour="glyph"><param name="uri" value="@ref"/></model></elementSpec>`)
+  const header = '<teiHeader><encodingDesc><charDecl><glyph xml:id="ythou"><mapping>ẏͧ</mapping></glyph></charDecl></encodingDesc></teiHeader>'
+  const result = renderTei(parse(`<TEI xmlns="http://www.tei-c.org/ns/1.0">${header}<text><body><p><g ref="#ythou"/> <g ref="#none">x</g></p></body></text></TEI>`), createProcessor(odd))
+  assert.deepEqual(odd.findings, [])
+  assert.equal(result.html, '<p class="tei-p"><span class="tei-g"><span class="tei-glyph">ẏͧ</span></span> <span class="tei-g">x</span></p>')
+  assert.deepEqual(result.warnings.map((w) => w.message), ['Reference that leads to no element in the document: #none'])
+})
+
+test('an anchor takes its id param, else its xml:id', () => {
+  const odd = read(`${SHELL}<elementSpec ident="p"><model behaviour="paragraph"/></elementSpec>
+    <elementSpec ident="anchor"><model predicate="@n" behaviour="anchor"><param name="id" value="concat('a', @n)"/></model><model behaviour="anchor"/></elementSpec>`)
+  assert.equal(renderWith(odd, '<p><anchor n="1"/><anchor xml:id="b"/><anchor/></p>').html,
+    '<p class="tei-p"><span class="tei-anchor" id="a1"></span><span class="tei-anchor" id="b"></span></p>')
+})
