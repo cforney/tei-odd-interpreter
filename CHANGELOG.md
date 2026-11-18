@@ -28,6 +28,8 @@ Names by namespace, not by prefix:
   before. A prefixed TEI source or ODD reads as an unprefixed one.
 - `egXML` is recognised by TEI's Examples namespace, not by its name.
 
+The nearest `xml:space` decides, as XML says: `default` inside `preserve` collapses whitespace again.
+
 ## 0.1.0
 
 The first release:

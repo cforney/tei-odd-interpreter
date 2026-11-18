@@ -32,10 +32,18 @@ export function wsTrim(tree: Root, flow: Odd['flow']): Root {
     return before === undefined || after === undefined || isBlock(before) || isBlock(after)
   }
 
-  function walk(node: Nodes, ancestors: Nodes[]): Nodes | null {
-    if (ancestors.some((a) => isElement(a) && attr(a, 'xml:space') === 'preserve')) return node
+  /** The nearest `xml:space` decides, as XML says: `default` inside `preserve` normalises again. */
+  const preserved = (ancestors: Nodes[]) => {
+    for (let k = ancestors.length - 1; k >= 0; k--) {
+      const a = ancestors[k]
+      if (isElement(a) && attr(a, 'xml:space')) return attr(a, 'xml:space') === 'preserve'
+    }
+    return false
+  }
 
+  function walk(node: Nodes, ancestors: Nodes[]): Nodes | null {
     if (isText(node)) {
+      if (preserved(ancestors)) return node
       let value = node.value ?? ''
       if (/^\s+$/.test(value)) {
         if (isIndentation(node, ancestors)) return null

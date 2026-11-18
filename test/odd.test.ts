@@ -433,3 +433,9 @@ test('names go by namespace: in the source, in elementSpec/@ns, and in a predica
   // SVG's title is not TEI's; an unbound prefix (x:) is ignored, as before
   assert.deepEqual(result.unmapped, ['Q{http://www.w3.org/2000/svg}svg', 'Q{http://www.w3.org/2000/svg}title', 'Q{urn:x-other}mark'])
 })
+
+test('the nearest xml:space decides', () => {
+  const odd = read(`${SHELL}<elementSpec ident="p"><model behaviour="paragraph"/></elementSpec><elementSpec ident="hi"><model behaviour="inline"/></elementSpec>`)
+  const result = renderWith(odd, '<p>collapsed  here <hi xml:space="preserve">kept  here <hi xml:space="default">collapsed  again <hi xml:space="preserve">kept  again</hi></hi></hi></p>')
+  assert.equal(result.html, '<p class="tei-p">collapsed here <span class="tei-hi">kept  here <span class="tei-hi">collapsed again <span class="tei-hi">kept  again</span></span></span></p>')
+})

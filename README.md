@@ -94,7 +94,8 @@ alternative, `width` and `height` are CSS lengths, `scale` zooms it. `glyph` ren
 
 A project adds behaviours, or replaces one. One that only wraps needs a `tag`, any other a
 `render`, which is given the element's params, its `content` and the rest of
-`BehaviourContext`. `flow` decides how whitespace and line breaks around it are treated.
+`BehaviourContext`. `flow` decides how whitespace and line breaks around it are treated; where
+the nearest `xml:space` is `preserve`, whitespace is kept as encoded.
 
 ```ts
 import { h, readOdd } from 'tei-odd-interpreter'
