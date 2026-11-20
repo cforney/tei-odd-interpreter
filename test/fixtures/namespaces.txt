@@ -1,0 +1,1 @@
+Prefixed, by default, foreign without a model, foreign with one, another's, TEI's. marked, high, plain.

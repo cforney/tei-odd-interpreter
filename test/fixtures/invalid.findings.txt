@@ -1,0 +1,6 @@
+chain-not-followed: schemaSpec "invalid": @source "missing.odd" is not followed, the ODD must be flattened first
+behaviour-missing: Model p-1: no @behaviour, renders as inline
+param-name-missing: Model p-1: a param without @name is skipped
+sequence-empty: Model p-2: an empty modelSequence renders nothing
+model-unreachable: Model p-2: never reached, p-1 already decides
+ident-missing: An elementSpec without @ident is skipped

@@ -30,6 +30,13 @@ Names by namespace, not by prefix:
 
 The nearest `xml:space` decides, as XML says: `default` inside `preserve` collapses whitespace again.
 
+The conformance fixtures follow the compiler's suite again, now with `behaviours`, `groups`,
+`namespaces`, `whitespace` and `invalid.odd`; where the two differ is measured, not listed:
+
+- `figure` puts its caption after the content, and none where `title` selects nothing.
+- An `elementSpec` without `@ident`, a `param` without `@name` and an empty `modelSequence` are the
+  new findings `ident-missing`, `param-name-missing` and `sequence-empty`; the first two threw.
+
 ## 0.1.0
 
 The first release:

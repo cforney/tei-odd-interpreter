@@ -214,7 +214,8 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
     })
 
   for (const spec of specsIn(schema)) {
-    const ident = attr(spec, 'ident')!
+    const ident = attr(spec, 'ident')
+    if (!ident) { report('ident-missing', {}); continue }
     // `@ns` gives the spec to that namespace's element of the name.
     const key = qualify(ident, { '': attr(spec, 'ns') ?? TEI_NS })
     const entries = elementChildren(spec).filter((e) => /^model(Grp|Sequence)?$/.test(nameOf(e)))
@@ -275,11 +276,16 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
         const sequence = nameOf(m) === 'modelSequence' ? elementChildren(m, 'model').map((part) => read(part, m, only)) : undefined
         const named = attr(m, 'behaviour')
         const known = !!sequence || (named !== undefined && Object.hasOwn(odd.behaviours, named))
+        if (sequence && !sequence.length) report('sequence-empty', { model: id })
         if (!sequence && !named) report('behaviour-missing', { model: id })
         else if (!known) report('behaviour-unknown', { model: id, behaviour: named! })
         // An element whose behaviour is not known still shows its text, as an unreadable expression leaves the rest.
         const behaviour = sequence ? 'modelSequence' : known ? named! : 'inline'
-        const params = elementChildren(m, 'param').map((p) => ({ name: attr(p, 'name')!, value: attr(p, 'value') ?? "''" }))
+        const params = elementChildren(m, 'param').flatMap((p) => {
+          const name = attr(p, 'name')
+          if (!name) report('param-name-missing', { model: id })
+          return name ? [{ name, value: attr(p, 'value') ?? "''" }] : []
+        })
         for (const { name } of params) {
           if (name.startsWith('--')) properties.add(name)
           if (known && !readsParam(odd.behaviours, behaviour, name)) report('param-unread', { model: id, behaviour, param: name })

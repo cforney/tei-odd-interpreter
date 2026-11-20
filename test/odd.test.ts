@@ -171,7 +171,7 @@ const renderBy = (model: string, behaviours?: Record<string, BehaviourSpec>) => 
 test('figure, figDesc and index are behaviours', () => {
   const figure = renderBy(`<model behaviour="figure"><param name="title" value="'t'"/></model>`)
   assert.deepEqual(figure.odd.findings, [])
-  assert.equal(figure.result.html, '<figure class="tei-p"><figcaption>t</figcaption>a <span class="tei-q">b</span></figure>')
+  assert.equal(figure.result.html, '<figure class="tei-p">a <span class="tei-q">b</span><figcaption>t</figcaption></figure>')
   assert.match(renderBy('<model behaviour="figDesc"/>').result.html, /^<figcaption class="tei-p">/)
   // As TEI Simple Print's `body` has it: the index asked for, and the text once.
   const body = renderBy(`<modelSequence><model behaviour="index"><param name="type" value="'toc'"/></model><model behaviour="block"/></modelSequence>`)

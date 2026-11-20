@@ -1,0 +1,6 @@
+model-unreachable: Model seg-2: never reached, seg-1 already decides
+behaviour-unknown: Model name-1: unknown behaviour "pass-through", renders as inline
+param-unread: Model persName-1: "inline" does not read the param "ref"
+param-unread: Model persName-1: "inline" does not read the param "name"
+param-unread: Model rs-1: "inline" does not read the param "type"
+model-unreachable-group: Model ab-3: never reached, the group from ab-1 already decides

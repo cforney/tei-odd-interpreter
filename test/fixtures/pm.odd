@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- The ODD of the conformance fixtures: one or two elements per Processing-Model feature. -->
-<TEI xmlns="http://www.tei-c.org/ns/1.0">
+<TEI xmlns="http://www.tei-c.org/ns/1.0" xmlns:pb="http://teipublisher.com/1.0">
   <teiHeader>
     <fileDesc>
       <titleStmt><title>Processing-Model fixtures</title></titleStmt>
@@ -21,21 +21,21 @@
           <model behaviour="metadata"/>
         </elementSpec>
         <!-- added here: this renderer reports an element without a model instead of
-             passing its content through, so the document's own elements need one -->
+             passing its content through, so these pass theirs through by a model -->
         <elementSpec ident="TEI" mode="change">
           <model behaviour="text"/>
         </elementSpec>
         <elementSpec ident="text" mode="change">
-          <model behaviour="block"/>
+          <model behaviour="text"/>
         </elementSpec>
         <elementSpec ident="body" mode="change">
           <model behaviour="text"/>
         </elementSpec>
         <elementSpec ident="sic" mode="change">
-          <model behaviour="inline"/>
+          <model behaviour="text"/>
         </elementSpec>
         <elementSpec ident="corr" mode="change">
-          <model behaviour="inline"/>
+          <model behaviour="text"/>
         </elementSpec>
 
         <!-- structure: a spec's only model; a group with inherited source rendition; classes -->
@@ -117,7 +117,7 @@
             <param name="default" value="corr"/>
             <param name="alternate" value="sic"/>
           </model>
-          <model output="print" predicate="sic and corr" behaviour="alternate">
+          <model output="printed" predicate="sic and corr" behaviour="alternate">
             <param name="default" value="sic"/>
             <param name="alternate" value="corr"/>
           </model>
@@ -138,6 +138,41 @@
             <param name="url" value="@url"/>
           </model>
         </elementSpec>
+        <!-- a figure: its content, then its title as the caption; in a paragraph a span -->
+        <elementSpec ident="figure" mode="change">
+          <model behaviour="figure">
+            <param name="content" value="graphic"/>
+            <param name="title" value="head"/>
+          </model>
+        </elementSpec>
+        <!-- TEI Publisher extensions: pass-through renders the content alone; a template, of elements
+             or of text, is filled in with the params and becomes the content -->
+        <elementSpec ident="name" mode="change">
+          <model behaviour="pass-through"/>
+        </elementSpec>
+        <elementSpec ident="persName" mode="change">
+          <model behaviour="inline">
+            <param name="ref" value="@ref"/>
+            <param name="name" value="."/>
+            <pb:template><a href="[[ref]]" title="See [[ref]]"><b>[[name]]</b></a> [[missing]]</pb:template>
+          </model>
+        </elementSpec>
+        <elementSpec ident="rs" mode="change">
+          <model behaviour="inline">
+            <param name="content" value="."/>
+            <param name="type" value="@type"/>
+            <pb:template xml:space="preserve">
+              [[content]] ([[type]])</pb:template>
+          </model>
+        </elementSpec>
+        <!-- models for one engine: opm- is OPM's, never rendered here; orc- is this compiler's, so here
+             it wins over the web model that TEI Publisher and OPM take, and orc-printed is the printed view -->
+        <elementSpec ident="emph" mode="change">
+          <model output="opm-web" behaviour="block" cssClass="emph-opm"/>
+          <model output="orc-web" behaviour="inline" cssClass="emph-orc"/>
+          <model output="orc-printed" behaviour="inline" cssClass="emph-print"/>
+          <model output="web" behaviour="block"/>
+        </elementSpec>
         <elementSpec ident="anchor" mode="change">
           <model behaviour="anchor"/>
         </elementSpec>
@@ -151,19 +186,50 @@
           </model>
           <model behaviour="note"/>
         </elementSpec>
+        <!-- groups: flattened, in document order, with the boundary kept in the model. The first member
+             that holds wins; none holding, a model after the group is the fallback; a group's @output
+             and a sequence in a group reach their models -->
+        <elementSpec ident="ab" mode="change">
+          <modelGrp>
+            <model predicate="@type = 'a'" behaviour="block" cssClass="ab-a"/>
+            <model predicate="@type" behaviour="block" cssClass="ab-typed"/>
+          </modelGrp>
+          <model behaviour="inline" cssClass="ab-after"/>
+        </elementSpec>
+        <elementSpec ident="w" mode="change">
+          <modelGrp output="plain">
+            <model behaviour="inline"><param name="content" value="@lemma"/></model>
+          </modelGrp>
+          <modelGrp>
+            <modelSequence>
+              <model behaviour="inline" cssClass="w-form"/>
+              <model predicate="@lemma" behaviour="inline" cssClass="w-lemma"><param name="content" value="@lemma"/></model>
+            </modelSequence>
+          </modelGrp>
+        </elementSpec>
+        <!-- namespaces: a spec with @ns takes that namespace's element, and only it; a prefix in a
+             predicate means what the ODD binds it to, TEI's own prefix included -->
+        <elementSpec ident="mark" ns="urn:x-fixture" mode="change">
+          <model behaviour="inline" cssClass="mark-foreign"/>
+        </elementSpec>
+        <elementSpec ident="term" mode="change" xmlns:f="urn:x-fixture" xmlns:t="http://www.tei-c.org/ns/1.0">
+          <model predicate="f:mark" behaviour="inline" cssClass="term-marked"/>
+          <model predicate="t:hi" behaviour="inline" cssClass="term-hi"/>
+          <model behaviour="inline"/>
+        </elementSpec>
         <!-- outputs: an output's models take precedence there; models of another output are skipped.
-             A view (print) is laid over the page: its omit hides, a model of the same behaviour adds its
+             A view (printed) is laid over the page: its omit hides, a model of the same behaviour adds its
              classes, and its readings of an alternate are marked; its switch is labelled by the <desc> -->
         <elementSpec ident="fw" mode="change">
           <model output="plain" behaviour="omit"/>
-          <model output="print" behaviour="block" cssClass="running"/>
+          <model output="printed" behaviour="block" cssClass="running"/>
           <model behaviour="block"/>
         </elementSpec>
         <elementSpec ident="date" mode="change">
           <model output="web" predicate="@when" behaviour="inline">
             <param name="content" value="@when"/>
           </model>
-          <model output="print" behaviour="omit"><desc>As printed</desc></model>
+          <model output="printed" behaviour="omit"><desc>As printed</desc></model>
           <model behaviour="inline"/>
         </elementSpec>
       </schemaSpec>

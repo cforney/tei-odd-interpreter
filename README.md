@@ -91,6 +91,7 @@ print's `(a)`, marks it instead of the number. `graphic` gives an `img`: `title`
 alternative, `width` and `height` are CSS lengths, `scale` zooms it. `glyph` renders the element its
 `uri` points to (`#id`, in the same document), by that element's own models, so the ODD says how a
 `char` or `glyph` shows; without a `uri`, its content. `anchor` takes its `id` param, else its `xml:id`.
+`figure` puts its `title`, where it selects anything, after the content as the caption.
 
 A project adds behaviours, or replaces one. One that only wraps needs a `tag`, any other a
 `render`, which is given the element's params, its `content` and the rest of

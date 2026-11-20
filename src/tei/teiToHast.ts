@@ -107,11 +107,11 @@ const RENDER: Record<string, Behaviour> = {
   metadata: () => null,
   text: (c) => c.content(),
   heading: (c) => wrap(`h${Math.min(6, Math.max(1, Number(str(c.params.level)) || 1))}`, 'block')(c),
-  /** Its title, where the model gives one, is the caption. */
+  /** Its title, where the model gives one that selects anything, is the caption, after the content. */
   figure: (c) => {
     const figure = wrap('figure', 'block')(c) as HastElement
     const tag = figure.tagName === 'figure' ? 'figcaption' : 'span'
-    if ('title' in c.params) figure.children.unshift(h(tag, {}, c.value(c.params.title, tag)))
+    if (items(c.params.title).length) figure.children.push(h(tag, {}, c.value(c.params.title, tag)))
     return figure
   },
   link: (c) => h('a', { ...c.props, href: str(c.params.uri ?? '') }, c.content('a')),

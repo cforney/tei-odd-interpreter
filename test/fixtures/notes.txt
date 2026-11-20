@@ -1,1 +1,1 @@
-A note, a margin note and a commented range.
+A note, a margin note and a commented range. A paragraph with the id of the next note, and a note with the id of its own body.
