@@ -2,7 +2,7 @@
 
 Each version's section becomes the notes of its GitHub release. 0.x may break with any minor version.
 
-## Unreleased
+## 0.3.0
 
 Source positions: `parse` gives each element its `position` (line and column, as unist has it), and
 an element of `result.hast` the position of the source element it renders, so a page can link back to

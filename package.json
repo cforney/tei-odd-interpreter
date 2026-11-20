@@ -1,6 +1,6 @@
 {
   "name": "tei-odd-interpreter",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Reads a TEI ODD and renders TEI by its Processing Model",
   "keywords": ["tei", "odd", "processing-model", "digital-edition", "hast"],
   "license": "BSD-2-Clause",
