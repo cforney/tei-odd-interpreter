@@ -69,7 +69,9 @@ values a `semi` list does not suggest.
 `odd.findings`, `result.warnings`, `coverage(odd)` and `idFindings(tree)` all return
 `{ code, severity, args, message }`. `severity` is `error` (a rule is lost), `warning` (the
 result may not be what the ODD means) or `info` (it works, but may need a look). `message` is
-in English; to report in another language, format `code` and `args`. An expression that
+in English; to report in another language, format `code` and `args`. `result.warnings` holds
+each finding once, with its `count` where it repeats, as a `rendition` the ODD does not declare
+does on every element that names it. An expression that
 cannot be evaluated counts as empty, and a behaviour that is not known, or missing, renders as
 `inline`, so one flaw costs one rule, not the document. Only XML that is not well-formed throws.
 

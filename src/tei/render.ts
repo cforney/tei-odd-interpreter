@@ -15,7 +15,7 @@
 
 import type { Root as HastRoot } from 'hast'
 
-import type { Finding } from '../findings.ts'
+import { tally, type Finding } from '../findings.ts'
 import { select, type Odd } from '../odd/odd.ts'
 import { seq, str } from '../odd/xpath.ts'
 import { hastToSearchText } from '../search/text.ts'
@@ -36,6 +36,7 @@ export interface RenderResult {
   text: string
   /** Note bodies, already rendered to HTML, in document order. */
   notes: RenderedNote[]
+  /** Each finding once, with its `count` where it repeats. */
   warnings: Finding[]
   /** Elements the ODD has no model for. */
   unmapped: string[]
@@ -91,7 +92,7 @@ export function renderTei(source: XastRoot, { odd, render }: Processor, decision
     hast,
     text,
     notes: state.notes.map(({ body, ...rest }, i) => ({ ...rest, html: toHtml(bodies[i]), hast: bodies[i] })),
-    warnings: state.warnings,
+    warnings: tally(state.warnings),
     unmapped: [...state.unmapped].sort(),
     page,
     decisions: collected.children.find((c): c is Decision => typeof c !== 'string'),

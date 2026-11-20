@@ -37,6 +37,9 @@ The conformance fixtures follow the compiler's suite again, now with `behaviours
 - An `elementSpec` without `@ident`, a `param` without `@name` and an empty `modelSequence` are the
   new findings `ident-missing`, `param-name-missing` and `sequence-empty`; the first two threw.
 
+`result.warnings` holds each finding once, with its new `count` where it repeats: an undeclared
+`rendition` named on every page was one warning per element.
+
 ## 0.1.0
 
 The first release:

@@ -52,9 +52,23 @@ export interface Finding {
   severity: Severity
   args: Args
   message: string
+  /** How often it occurs, where more than once. */
+  count?: number
 }
 
 export function finding(code: FindingCode, args: Args = {}): Finding {
   const [severity, message] = MESSAGES[code]
   return { code, severity, args, message: message(args) }
+}
+
+/** Each finding once, in order of first occurrence, counted where it repeats. */
+export function tally(findings: Finding[]): Finding[] {
+  const seen = new Map<string, Finding>()
+  for (const f of findings) {
+    const key = f.code + JSON.stringify(f.args)
+    const first = seen.get(key)
+    if (first) first.count = (first.count ?? 1) + 1
+    else seen.set(key, { ...f })
+  }
+  return [...seen.values()]
 }

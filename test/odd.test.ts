@@ -439,3 +439,9 @@ test('the nearest xml:space decides', () => {
   const result = renderWith(odd, '<p>collapsed  here <hi xml:space="preserve">kept  here <hi xml:space="default">collapsed  again <hi xml:space="preserve">kept  again</hi></hi></hi></p>')
   assert.equal(result.html, '<p class="tei-p">collapsed here <span class="tei-hi">kept  here <span class="tei-hi">collapsed again <span class="tei-hi">kept  again</span></span></span></p>')
 })
+
+test('a repeated warning is tallied', () => {
+  const odd = read(`${SHELL}<elementSpec ident="p"><model behaviour="paragraph" useSourceRendition="true"/></elementSpec>`)
+  const result = renderWith(odd, '<p rendition="#aq">a</p><p rendition="#b">b</p><p rendition="#aq">c</p>')
+  assert.deepEqual(result.warnings.map((w) => [w.args.rendition, w.count]), [['aq', 2], ['b', undefined]])
+})
