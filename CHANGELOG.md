@@ -2,6 +2,14 @@
 
 Each version's section becomes the notes of its GitHub release. 0.x may break with any minor version.
 
+## Unreleased
+
+A finding says where it occurs: `lines`, one per occurrence, in the document or, for
+`odd.findings`, in the ODD; `result.warnings` joins those of a repeated finding.
+
+The README gives a table of contents from `result.hast`, what TEI's `index` asks for, and its
+SvelteKit example types `load` and `entries`.
+
 ## 0.3.0
 
 Source positions: `parse` gives each element its `position` (line and column, as unist has it), and

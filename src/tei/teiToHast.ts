@@ -129,7 +129,7 @@ const RENDER: Record<string, Behaviour> = {
     const target = uri?.startsWith('#') ? byId(c.pos, uri.slice(1)) : undefined
     // Not the glyph itself, nor around it: that would render without end
     const usable = target && ![...c.pos.up, c.pos.node].includes(target.node)
-    if (uri && !usable) c.state.warnings.push(finding('reference-unresolved', { uri }))
+    if (uri && !usable) c.state.warnings.push(finding('reference-unresolved', { uri }, [c.pos.node]))
     return h('span', c.props, usable ? withoutIds(c.value([target], 'span')) : c.content('span'))
   },
   /** Each reading once, marked as the default or not of the page and of each view; alone, the default. */
@@ -270,11 +270,11 @@ export function createRenderer(odd: Odd) {
   function check(node: Element, ln: string, state: RenderState) {
     for (const [name, value] of Object.entries(node.attributes ?? {})) {
       if (value != null && odd.values[ln]?.[name] && !odd.values[ln][name].has(value)) {
-        state.warnings.push(finding('value-not-listed', { element: ln, attribute: name, value }))
+        state.warnings.push(finding('value-not-listed', { element: ln, attribute: name, value }, [node]))
       }
     }
     for (const r of renditions(node, odd)) {
-      if (!odd.renditions.has(r)) state.warnings.push(finding('rendition-undeclared', { rendition: r }))
+      if (!odd.renditions.has(r)) state.warnings.push(finding('rendition-undeclared', { rendition: r }, [node]))
     }
   }
 

@@ -37,7 +37,7 @@ no spec is read from it.
 
 ## API
 
-| | |
+| Function | Returns |
 | --- | --- |
 | `readOdd(xml, { tokensCss?, behaviours?, ignoredOutputs?, checkedValueLists? })` | The ODD as an `Odd`: its models, `css`, `views`, `availability`, `findings` |
 | `createProcessor(odd)` | The processor for one ODD |
@@ -49,7 +49,7 @@ no spec is read from it.
 
 `RenderResult` holds:
 
-| | |
+| Field | Holds |
 | --- | --- |
 | `html`, `hast` | The page, as a string and as a tree to map to your own components; an element of the tree has the `position` of the source element it renders, to link back to the source |
 | `text` | The `plain` output, for any search index |
@@ -67,11 +67,12 @@ values a `semi` list does not suggest.
 ## Findings
 
 `odd.findings`, `result.warnings`, `coverage(odd)` and `idFindings(tree)` all return
-`{ code, severity, args, message }`. `severity` is `error` (a rule is lost), `warning` (the
+`{ code, severity, args, message, lines? }`. `severity` is `error` (a rule is lost), `warning` (the
 result may not be what the ODD means) or `info` (it works, but may need a look). `message` is
 in English; to report in another language, format `code` and `args`. `result.warnings` holds
 each finding once, with its `count` where it repeats, as a `rendition` the ODD does not declare
-does on every element that names it. An expression that
+does on every element that names it. `lines` are where it occurs, one per occurrence: in the
+document, or for `odd.findings` in the ODD, so a report can link each to its source line. An expression that
 cannot be evaluated counts as empty, and a behaviour that is not known, or missing, renders as
 `inline`, so one flaw costs one rule, not the document. Only XML that is not well-formed throws.
 
@@ -81,7 +82,8 @@ cannot be evaluated counts as empty, and a behaviour that is not known, or missi
 `figure`, `glyph`, `graphic`, `heading`, `index`, `inline`, `link`, `list`, `listItem`,
 `metadata`, `note`, `omit`, `paragraph`, `row`, `section`, `table`, `text`, `title`.
 
-`index` renders nothing; generating the list TEI describes is left to you. `list` gives `ol`
+`index` renders nothing; the list TEI describes is yours to generate, as in
+the example under [Beyond the Processing Model](#beyond-the-processing-model). `list` gives `ol`
 where its `type` param is `ordered`, else `ul`, and puts what comes before the first item, such
 as a head, before the list. `cell` gives `th` where its `heading` param is true, with `cols` and
 `rows` as `colspan` and `rowspan`. A `break` of `type` `line` puts its `label` at the start of the
@@ -141,7 +143,7 @@ empty and is reported.
 TEI's Processing Model does not cover everything an edition needs. These are this package's own
 conventions; an ODD that does not use them renders as TEI describes.
 
-| | |
+| Convention | Meaning |
 | --- | --- |
 | `page` output | Params of the root element's `page` model describe the page: `result.page`, each as strings. |
 | `join` param of a `break` | The line joins the next: the spaces around it go, and a last character of the text that the param names, such as a hyphen |
@@ -158,6 +160,24 @@ import { findFirst, parse, plainText } from 'tei-odd-interpreter'
 
 const tree = parse(xml)
 const title = plainText(findFirst(findFirst(tree, 'titleStmt'), 'title'))
+```
+
+**A table of contents:** the headings of `result.hast`, each given an id to link to.
+
+```ts
+import type { Root, RootContent } from 'hast'
+import { plainText, toHtml } from 'tei-odd-interpreter'
+
+const contents: { id: string; level: number; text: string }[] = []
+const walk = (node: Root | RootContent) => {
+  if (node.type === 'element' && /^h[1-6]$/.test(node.tagName)) {
+    node.properties.id ??= `h-${contents.length + 1}`
+    contents.push({ id: String(node.properties.id), level: Number(node.tagName[1]), text: plainText(node) })
+  }
+  if ('children' in node) node.children.forEach(walk)
+}
+walk(result.hast)
+const html = toHtml(result.hast) // the page, its headings with their ids
 ```
 
 ## Outputs
@@ -180,7 +200,7 @@ ancestor, or check an element with the id `view-<output>`. No script is needed.
 
 You can rely on these, and they follow semantic versioning:
 
-| | |
+| Class or attribute | Marks |
 | --- | --- |
 | `.tei-<element>` | On every element rendered, by its local name |
 | `.r-<id>`, `style` | A `@rendition` (`#id`, or a prefix the ODD's `prefixDef` resolves) and the source's `@style`, where the model has `@useSourceRendition="true"` |
@@ -203,6 +223,7 @@ render each document with it.
 import { readFileSync } from 'node:fs'
 import { createProcessor, parse, readOdd, renderTei } from 'tei-odd-interpreter'
 
+// The ODD and the documents in `edition/`, beside `package.json`: the build runs there.
 const read = (path: string) => readFileSync(`edition/${path}`, 'utf8')
 export const odd = readOdd(read('my.odd'))
 const processor = createProcessor(odd)
@@ -226,9 +247,11 @@ const { html, page } = render(Astro.params.doc)
 
 ```ts
 import { odd, render } from '../../lib/edition'
+import type { EntryGenerator, PageServerLoad } from './$types'
+
 export const prerender = true
-export const entries = () => [{ doc: 'first' }, { doc: 'second' }]
-export const load = ({ params }) => {
+export const entries: EntryGenerator = () => [{ doc: 'first' }, { doc: 'second' }]
+export const load: PageServerLoad = ({ params }) => {
   const { html, page } = render(params.doc)
   return { html, title: page.title?.[0], css: odd.css }
 }

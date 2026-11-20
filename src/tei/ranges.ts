@@ -20,22 +20,26 @@ type Parent = Root | Element
 
 /** Wraps the ranges of each tree on its own; returns the findings for what did not resolve. */
 export function resolveRanges(trees: Parent[], anchors: string[], skip: string): Finding[] {
-  const unresolved: string[] = []
+  const unresolved: Element[] = []
   const referenced = new Set<string>()
+  const elements = new Map<string, Element>()
 
   for (const tree of trees) {
     // `within`: the skipped element a text or range end lies in.
     const leaves: { node: Text; parent: Parent; within?: Element }[] = []
     const starts = new Map<string, { at: number; within?: Element }>()
-    const ends: { id: string; note: string; at: number; within?: Element }[] = []
+    const ends: { id: string; note: string; at: number; within?: Element; node: Element }[] = []
 
     const walk = (parent: Parent, within?: Element) => {
       for (const node of parent.children) {
         if (node.type === 'text') leaves.push({ node, parent, within })
         if (node.type !== 'element') continue
         const { id, className, 'data-range': range, 'data-note': note } = node.properties
-        if (id != null) starts.set(String(id), { at: leaves.length, within })
-        if (range != null) ends.push({ id: String(range), note: String(note), at: leaves.length, within })
+        if (id != null) {
+          starts.set(String(id), { at: leaves.length, within })
+          elements.set(String(id), node)
+        }
+        if (range != null) ends.push({ id: String(range), note: String(note), at: leaves.length, within, node })
         else walk(node, within ?? (Array.isArray(className) && className.includes(skip) ? node : undefined))
       }
     }
@@ -45,7 +49,7 @@ export function resolveRanges(trees: Parent[], anchors: string[], skip: string):
       referenced.add(end.id)
       const start = starts.get(end.id)
       if (start === undefined) {
-        unresolved.push(end.id)
+        unresolved.push(end.node)
         continue
       }
       const between = leaves.slice(Math.min(start.at, end.at), Math.max(start.at, end.at))
@@ -59,7 +63,9 @@ export function resolveRanges(trees: Parent[], anchors: string[], skip: string):
 
   const orphans = anchors.filter((id) => !referenced.has(id))
   return [
-    ...(unresolved.length ? [finding('range-no-start', { ids: unresolved.join(', ') })] : []),
-    ...(orphans.length ? [finding('anchor-unused', { ids: orphans.join(', ') })] : []),
+    ...(unresolved.length
+      ? [finding('range-no-start', { ids: unresolved.map((e) => String(e.properties['data-range'])).join(', ') }, unresolved)]
+      : []),
+    ...(orphans.length ? [finding('anchor-unused', { ids: orphans.join(', ') }, orphans.map((id) => elements.get(id)))] : []),
   ]
 }

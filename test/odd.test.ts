@@ -11,9 +11,9 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import type { RootContent } from 'hast'
+import type { Root, RootContent } from 'hast'
 import {
-  compileXPath, coverage, createProcessor, findFirst, parse, readOdd, renderTei, selectOutput, seq, str,
+  compileXPath, coverage, createProcessor, findFirst, idFindings, parse, plainText, readOdd, renderTei, selectOutput, seq, str,
   h, text, toHtml, type BehaviourSpec, type Decision, type Element, type Finding,
 } from '../src/index.ts'
 
@@ -453,4 +453,33 @@ test('what an element renders keeps its place in the source', () => {
   const lines = (n: RootContent): string[] =>
     n.type !== 'element' ? [] : [`${n.position?.start.line}-${n.position?.end.line}`, ...n.children.flatMap(lines)]
   assert.deepEqual(result.hast.children.flatMap(lines), ['1-3', '2-3', '4-4'])
+})
+
+test('a finding says the lines it occurs at, in the TEI or the ODD', () => {
+  const odd = read(`${SHELL}<elementSpec ident="p"><model behaviour="paragraph" useSourceRendition="true"/></elementSpec>
+    <elementSpec ident="hi">
+      <model behaviour="inline"/>
+      <model behaviour="block"/>
+    </elementSpec>`)
+  assert.deepEqual(odd.findings.map((f) => [f.code, f.lines]), [['model-unreachable', [5]]]) // the second model; SHELL takes two lines
+  const result = renderWith(odd, '<p rendition="#aq">a</p>\n<p rendition="#b">b</p>\n<p xml:id="x" rendition="#aq">c</p>\n<p xml:id="x"/>')
+  assert.deepEqual(result.warnings.map((w) => [w.args.rendition, w.lines]), [['aq', [1, 3]], ['b', [2]]])
+  assert.deepEqual(idFindings(parse('<TEI>\n<p xml:id="x"/>\n<p xml:id="x"/></TEI>')).map((f) => f.lines), [[2, 3]])
+})
+
+test('the README\'s table of contents', () => {
+  const odd = read(`${SHELL}<elementSpec ident="head"><model behaviour="heading"><param name="level" value="count(ancestor::div)"/></model></elementSpec>
+    <elementSpec ident="div"><model behaviour="section"/></elementSpec>`)
+  const result = renderWith(odd, '<div><head>One</head><div xml:id="b"><head>Two <hi>a</hi></head></div></div>')
+  const contents: { id: string; level: number; text: string }[] = []
+  const walk = (node: Root | RootContent) => {
+    if (node.type === 'element' && /^h[1-6]$/.test(node.tagName)) {
+      node.properties.id ??= `h-${contents.length + 1}`
+      contents.push({ id: String(node.properties.id), level: Number(node.tagName[1]), text: plainText(node) })
+    }
+    if ('children' in node) node.children.forEach(walk)
+  }
+  walk(result.hast)
+  assert.deepEqual(contents, [{ id: 'h-1', level: 1, text: 'One' }, { id: 'h-2', level: 2, text: 'Two a' }])
+  assert.match(toHtml(result.hast), /<h2 class="tei-head" id="h-2">/)
 })

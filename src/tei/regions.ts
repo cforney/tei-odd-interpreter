@@ -49,11 +49,11 @@ function lift(tree: Root, path: Element[], depth: number) {
 /** Wraps each region; returns the findings for markers without a partner. */
 export function resolveRegions(tree: Root): Finding[] {
   const all = markers(tree).map((p) => p.at(-1)!)
-  let unpaired = 0
+  const unpaired: Element[] = []
   for (let i = 0; i < all.length; i++) {
     const [start, end] = [all[i], all[i + 1]]
     if (start.properties['data-region'] !== 'start' || end?.properties['data-region'] !== 'end') {
-      unpaired++
+      unpaired.push(start)
       continue
     }
     i++
@@ -70,5 +70,5 @@ export function resolveRegions(tree: Root): Finding[] {
     start.children = parent.children.splice(s + 1, e - s - 1) as ElementContent[]
     parent.children.splice(parent.children.indexOf(end), 1)
   }
-  return unpaired ? [finding('region-unpaired', { count: String(unpaired) })] : []
+  return unpaired.length ? [finding('region-unpaired', { count: String(unpaired.length) }, unpaired)] : []
 }

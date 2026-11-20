@@ -142,23 +142,16 @@ const NCNAME = /^[\p{L}_][\p{L}\p{N}\p{M}._-]*$/u
  * libxml2 and Saxon refuse to parse at all.
  */
 export function idFindings(tree: Root): Finding[] {
-  const seen = new Set<string>()
-  const twice = new Set<string>()
-  const invalid = new Set<string>()
+  const seen = new Map<string, Element[]>()
   const walk = (node: unknown): void => {
-    if (isElement(node)) {
-      const id = attr(node, 'xml:id')
-      if (id !== undefined) {
-        if (seen.has(id)) twice.add(id)
-        seen.add(id)
-        if (!NCNAME.test(id)) invalid.add(id)
-      }
-    }
+    const id = isElement(node) ? attr(node, 'xml:id') : undefined
+    if (id !== undefined) seen.set(id, [...(seen.get(id) ?? []), node as Element])
     for (const child of children(node)) walk(child)
   }
   walk(tree)
+  const ids = [...seen.keys()].sort()
   return [
-    ...[...twice].sort().map((id) => finding('id-twice', { id })),
-    ...[...invalid].sort().map((id) => finding('id-invalid', { id })),
+    ...ids.filter((id) => seen.get(id)!.length > 1).map((id) => finding('id-twice', { id }, seen.get(id))),
+    ...ids.filter((id) => !NCNAME.test(id)).map((id) => finding('id-invalid', { id }, seen.get(id))),
   ]
 }

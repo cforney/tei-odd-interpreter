@@ -169,8 +169,9 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
   }
   /** Each finding once: an expression that fails, fails wherever it is evaluated. */
   const reported = new Set<string>()
-  const report = (code: FindingCode, args: Record<string, string>) => {
-    const found = finding(code, args)
+  /** `at`: the ODD's element it is about, for its line. */
+  const report = (code: FindingCode, args: Record<string, string>, at?: Element) => {
+    const found = finding(code, args, [at])
     if (reported.has(found.message)) return
     reported.add(found.message)
     odd.findings.push(found)
@@ -188,8 +189,8 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
   // TEI itself is no chain: `odd2odd` leaves it on the ODD it flattened.
   const [schema, ...others] = findAll(tree, 'schemaSpec')
   const source = schema && attr(schema, 'source')
-  if (source && !/p5subset|^tei:/.test(source)) report('chain-not-followed', { ident: attr(schema, 'ident') ?? '', source })
-  for (const other of others) report('schema-spec-ignored', { ident: attr(other, 'ident') ?? '' })
+  if (source && !/p5subset|^tei:/.test(source)) report('chain-not-followed', { ident: attr(schema, 'ident') ?? '', source }, schema)
+  for (const other of others) report('schema-spec-ignored', { ident: attr(other, 'ident') ?? '' }, other)
 
   for (const r of elementChildren(findFirst(tree, 'tagsDecl'), 'rendition')) {
     const id = attr(r, 'xml:id')!
@@ -207,7 +208,7 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
       if (name !== 'specGrp' && name !== 'specGrpRef') return []
       const target = attr(child, 'target') ?? ''
       const group = name === 'specGrp' ? child : target.startsWith('#') ? groups.get(target.slice(1)) : undefined
-      if (!group) report('spec-group-not-found', { target })
+      if (!group) report('spec-group-not-found', { target }, child)
       if (!group || followed.has(group)) return []
       followed.add(group)
       return specsIn(group)
@@ -215,11 +216,12 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
 
   for (const spec of specsIn(schema)) {
     const ident = attr(spec, 'ident')
-    if (!ident) { report('ident-missing', {}); continue }
+    if (!ident) { report('ident-missing', {}, spec); continue }
     // `@ns` gives the spec to that namespace's element of the name.
     const key = qualify(ident, { '': attr(spec, 'ns') ?? TEI_NS })
     const entries = elementChildren(spec).filter((e) => /^model(Grp|Sequence)?$/.test(nameOf(e)))
     const models: Model[] = []
+    const elements = new Map<string, Element>() // each model's element, by its id
     const view: string[] = []
 
     entries.forEach((entry, g) => {
@@ -239,7 +241,7 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
          */
         const compile = (expr: string, code: FindingCode, args: Record<string, string> = {}): XPath => {
           const empty = (error: unknown) => {
-            report(code, { model: id, ...args, error: (error as Error).message })
+            report(code, { model: id, ...args, error: (error as Error).message }, m)
             return []
           }
           let evaluate: XPath
@@ -262,7 +264,7 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
         const own = tokens(m, 'cssClass')
         const styled = elementChildren(m, 'outputRendition').length > 0
         const bare = sole && !group && !outer && !predicate && !output
-        const cls = styled && !bare ? own[0] ?? (report('css-class-missing', { model: id }), id) : undefined
+        const cls = styled && !bare ? own[0] ?? (report('css-class-missing', { model: id }, m), id) : undefined
         // A `web` model belongs to the page itself, so its CSS is the page's, not a view's.
         const overlay = output && !ALONE.includes(output) ? output : undefined
         if (styled) {
@@ -276,20 +278,21 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
         const sequence = nameOf(m) === 'modelSequence' ? elementChildren(m, 'model').map((part) => read(part, m, only)) : undefined
         const named = attr(m, 'behaviour')
         const known = !!sequence || (named !== undefined && Object.hasOwn(odd.behaviours, named))
-        if (sequence && !sequence.length) report('sequence-empty', { model: id })
-        if (!sequence && !named) report('behaviour-missing', { model: id })
-        else if (!known) report('behaviour-unknown', { model: id, behaviour: named! })
+        if (sequence && !sequence.length) report('sequence-empty', { model: id }, m)
+        if (!sequence && !named) report('behaviour-missing', { model: id }, m)
+        else if (!known) report('behaviour-unknown', { model: id, behaviour: named! }, m)
         // An element whose behaviour is not known still shows its text, as an unreadable expression leaves the rest.
         const behaviour = sequence ? 'modelSequence' : known ? named! : 'inline'
         const params = elementChildren(m, 'param').flatMap((p) => {
           const name = attr(p, 'name')
-          if (!name) report('param-name-missing', { model: id })
-          return name ? [{ name, value: attr(p, 'value') ?? "''" }] : []
+          if (!name) report('param-name-missing', { model: id }, p)
+          return name ? [{ name, value: attr(p, 'value') ?? "''", p }] : []
         })
-        for (const { name } of params) {
+        for (const { name, p } of params) {
           if (name.startsWith('--')) properties.add(name)
-          if (known && !readsParam(odd.behaviours, behaviour, name)) report('param-unread', { model: id, behaviour, param: name })
+          if (known && !readsParam(odd.behaviours, behaviour, name)) report('param-unread', { model: id, behaviour, param: name }, p)
         }
+        elements.set(id, m)
         return {
           id,
           behaviour,
@@ -319,7 +322,7 @@ export function readOdd(xml: string, { tokensCss = '', behaviours = {}, ignoredO
       const output = m.output ?? ''
       const earlier = decides.get(output)
       if (earlier && (earlier.group === undefined || earlier.group !== m.group)) {
-        report(earlier.group === undefined ? 'model-unreachable' : 'model-unreachable-group', { model: m.id, by: earlier.by })
+        report(earlier.group === undefined ? 'model-unreachable' : 'model-unreachable-group', { model: m.id, by: earlier.by }, elements.get(m.id))
       } else if (!m.predicate) decides.set(output, { by: m.id })
       else if (m.group !== undefined && !earlier) decides.set(output, { by: m.id, group: m.group })
     }

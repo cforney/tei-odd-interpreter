@@ -54,21 +54,28 @@ export interface Finding {
   message: string
   /** How often it occurs, where more than once. */
   count?: number
+  /** The source lines it occurs at, in the TEI or the ODD, where known: one per occurrence. */
+  lines?: number[]
 }
 
-export function finding(code: FindingCode, args: Args = {}): Finding {
+/** `at`: the parsed nodes it occurs at; their `position` gives `lines`. */
+export function finding(code: FindingCode, args: Args = {}, at: unknown[] = []): Finding {
   const [severity, message] = MESSAGES[code]
-  return { code, severity, args, message: message(args) }
+  const lines = at.flatMap((n) => (n as { position?: { start: { line: number } } })?.position?.start.line ?? [])
+  return { code, severity, args, message: message(args), ...(lines.length ? { lines } : {}) }
 }
 
-/** Each finding once, in order of first occurrence, counted where it repeats. */
+/** Each finding once, in order of first occurrence, counted where it repeats, with the lines of all. */
 export function tally(findings: Finding[]): Finding[] {
   const seen = new Map<string, Finding>()
   for (const f of findings) {
     const key = f.code + JSON.stringify(f.args)
     const first = seen.get(key)
-    if (first) first.count = (first.count ?? 1) + 1
-    else seen.set(key, { ...f })
+    if (!first) seen.set(key, { ...f })
+    else {
+      first.count = (first.count ?? 1) + 1
+      if (f.lines) first.lines = [...(first.lines ?? []), ...f.lines]
+    }
   }
   return [...seen.values()]
 }
