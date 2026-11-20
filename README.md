@@ -5,7 +5,7 @@ bundler, without generating code. It knows no TEI element by name: the ODD says 
 everything renders, and what the ODD gets wrong is reported instead of stopping the run.
 
 ```sh
-npm add https://github.com/cforney/tei-odd-interpreter/releases/download/v0.1.0/tei-odd-interpreter-0.1.0.tgz
+npm add https://github.com/cforney/tei-odd-interpreter/releases/download/v0.2.0/tei-odd-interpreter-0.2.0.tgz
 ```
 
 Until 1.0 the package is released on GitHub, not on npm: install a release by its tarball's URL,

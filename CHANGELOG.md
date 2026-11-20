@@ -2,7 +2,7 @@
 
 Each version's section becomes the notes of its GitHub release. 0.x may break with any minor version.
 
-## Unreleased
+## 0.2.0
 
 The params TEI defines for four behaviours, which were reported as not read:
 
