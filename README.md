@@ -41,7 +41,7 @@ no spec is read from it.
 | --- | --- |
 | `readOdd(xml, { tokensCss?, behaviours?, ignoredOutputs?, checkedValueLists? })` | The ODD as an `Odd`: its models, `css`, `views`, `availability`, `findings` |
 | `createProcessor(odd)` | The processor for one ODD |
-| `parse(xml)` | TEI as xast; throws on XML that is not well-formed |
+| `parse(xml)` | TEI as xast, each element with its `position` (line and column); throws on XML that is not well-formed |
 | `renderTei(tree, processor, decisions?)` | One document as a `RenderResult` |
 | `coverage(odd)` | After rendering: the models that never fired, the elements without one |
 | `idFindings(tree)` | Ids used twice, and ids that are no NCName |
@@ -51,7 +51,7 @@ no spec is read from it.
 
 | | |
 | --- | --- |
-| `html`, `hast` | The page, as a string and as a tree to map to your own components |
+| `html`, `hast` | The page, as a string and as a tree to map to your own components; an element of the tree has the `position` of the source element it renders, to link back to the source |
 | `text` | The `plain` output, for any search index |
 | `notes` | In document order: `place`, `number` and `id` where numbered, `label` where the model gives one, `html`, `hast` |
 | `page` | The params of the root element's `page` model, each as strings |

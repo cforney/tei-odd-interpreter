@@ -31,13 +31,25 @@ export function qualify(qname: string, ns: Record<string, string>): string {
 }
 
 /**
- * XML → xast: elements and text, all the pipeline reads. Without source positions,
- * which cost `xast-util-from-xml` more than the rest of a build. Attribute values
- * are tokens and pointers, so a line break in one is not part of it.
+ * XML → xast: elements and text, all the pipeline reads, each element with its `position`
+ * in the source. Attribute values are tokens and pointers, so a line break in one is not
+ * part of it.
  */
 export function parse(xml: string): Root {
   const tokens = (attributes: Record<string, string>) =>
     Object.fromEntries(Object.entries(attributes).map(([k, v]) => [k, v.replace(/\s+/g, ' ').trim()]))
+  const lines = [0]
+  for (let i = xml.indexOf('\n'); i >= 0; i = xml.indexOf('\n', i + 1)) lines.push(i + 1)
+  /** An offset as line and column, by binary search over the line starts. */
+  const point = (offset: number) => {
+    let lo = 0
+    for (let hi = lines.length - 1; lo < hi;) {
+      const mid = (lo + hi + 1) >> 1
+      if (lines[mid] <= offset) lo = mid
+      else hi = mid - 1
+    }
+    return { line: lo + 1, column: offset - lines[lo] + 1, offset }
+  }
   const convert = (node: XmlNode, scope: Record<string, string>): ElementContent[] => {
     if (node instanceof XmlText) return [{ type: 'text', value: node.text }]
     if (!(node instanceof XmlElement)) return []
@@ -49,9 +61,10 @@ export function parse(xml: string): Root {
       attributes: tokens(node.attributes),
       children: node.children.flatMap((c) => convert(c, ns)),
       data: { name: qualify(node.name, ns), ns },
+      position: { start: point(node.start), end: point(node.end) },
     }]
   }
-  return { type: 'root', children: parseXml(xml).children.flatMap((c) => convert(c, {})) }
+  return { type: 'root', children: parseXml(xml, { includeOffsets: true }).children.flatMap((c) => convert(c, {})) }
 }
 
 /** Strip a namespace prefix: `tei:head` → `head`. */

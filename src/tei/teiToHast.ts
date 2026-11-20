@@ -306,7 +306,7 @@ export function createRenderer(odd: Odd) {
     if (decision) state.open = decision
     if (!model) {
       state.unmapped.add(ln)
-      const span = h('span', { ...attrMap(node), className: [cls, 'tei-unmapped'] }, kids('span'))
+      const span = { ...h('span', { ...attrMap(node), className: [cls, 'tei-unmapped'] }, kids('span')), position: node.position }
       state.open = parent
       return [span]
     }
@@ -372,6 +372,8 @@ export function createRenderer(odd: Odd) {
     const out = (model.sequence ?? [model]).flatMap((m, k) =>
       model.sequence && m.predicate && !bool(m.predicate(pos)) ? [] : apply(m, k, rendered++ > 0),
     )
+    // What this element renders keeps its place in the source; an element of its content keeps its own.
+    for (const e of out) if (e.type === 'element') e.position ??= node.position
     state.open = parent
     return out
   }

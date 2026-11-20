@@ -2,6 +2,12 @@
 
 Each version's section becomes the notes of its GitHub release. 0.x may break with any minor version.
 
+## Unreleased
+
+Source positions: `parse` gives each element its `position` (line and column, as unist has it), and
+an element of `result.hast` the position of the source element it renders, so a page can link back to
+the source line. The HTML is unchanged.
+
 ## 0.2.0
 
 The params TEI defines for four behaviours, which were reported as not read:

@@ -11,6 +11,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
+import type { RootContent } from 'hast'
 import {
   compileXPath, coverage, createProcessor, findFirst, parse, readOdd, renderTei, selectOutput, seq, str,
   h, text, toHtml, type BehaviourSpec, type Decision, type Element, type Finding,
@@ -444,4 +445,12 @@ test('a repeated warning is tallied', () => {
   const odd = read(`${SHELL}<elementSpec ident="p"><model behaviour="paragraph" useSourceRendition="true"/></elementSpec>`)
   const result = renderWith(odd, '<p rendition="#aq">a</p><p rendition="#b">b</p><p rendition="#aq">c</p>')
   assert.deepEqual(result.warnings.map((w) => [w.args.rendition, w.count]), [['aq', 2], ['b', undefined]])
+})
+
+test('what an element renders keeps its place in the source', () => {
+  const odd = read(`${SHELL}<elementSpec ident="p"><model behaviour="paragraph"/></elementSpec><elementSpec ident="hi"><model behaviour="inline"/></elementSpec>`)
+  const result = renderWith(odd, '<p>one\n<hi>two\nthree</hi></p>\n<p>four</p>')
+  const lines = (n: RootContent): string[] =>
+    n.type !== 'element' ? [] : [`${n.position?.start.line}-${n.position?.end.line}`, ...n.children.flatMap(lines)]
+  assert.deepEqual(result.hast.children.flatMap(lines), ['1-3', '2-3', '4-4'])
 })
